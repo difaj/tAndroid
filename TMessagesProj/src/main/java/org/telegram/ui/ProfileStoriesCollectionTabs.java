@@ -147,6 +147,12 @@ public class ProfileStoriesCollectionTabs extends BlurredFrameLayout implements 
         return tabsView.getPageIdByPosition(position);
     }
 
+    public void updateColors() {
+        if (tabsView != null) {
+            tabsView.updateColors();
+        }
+    }
+
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();

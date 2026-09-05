@@ -64,8 +64,8 @@ import org.telegram.ui.Stories.StoriesUtilities;
 public class UserCell extends FrameLayout implements NotificationCenter.NotificationCenterDelegate, Theme.Colorable {
 
     public BackupImageView avatarImageView;
-    protected SimpleTextView nameTextView;
-    protected SimpleTextView statusTextView;
+    public SimpleTextView nameTextView;
+    public SimpleTextView statusTextView;
     private ImageView imageView;
     private CheckBox2 checkBox;
     private CheckBoxSquare checkBoxBig;

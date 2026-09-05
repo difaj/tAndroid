@@ -207,6 +207,7 @@ public abstract class BlurredBackgroundDrawable extends Drawable {
         shadowColor = colorProvider.getShadowColor();
         strokeColorTop = colorProvider.getStrokeColorTop();
         strokeColorBottom = colorProvider.getStrokeColorBottom();
+        invalidateSelf();
     }
 
 

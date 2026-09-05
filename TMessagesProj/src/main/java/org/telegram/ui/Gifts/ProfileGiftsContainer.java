@@ -984,6 +984,10 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
                 emptyView2Subtitle.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, resourcesProvider));
                 emptyView2Button.updateColors();
             }
+            if (listView != null) {
+                listView.invalidateViews();
+                listView.invalidate();
+            }
         }
     }
 
@@ -1027,7 +1031,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
         this.list.load();
         this.resourcesProvider = resourcesProvider;
 
-        viewPager = new ViewPagerFixed(context) {
+        viewPager = new ViewPagerFixed(context, resourcesProvider) {
             @Override
             public void onTabAnimationUpdate(boolean manual) {
                 super.onTabAnimationUpdate(manual);
@@ -1844,6 +1848,16 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
         }
         checkboxTextView.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, resourcesProvider));
         checkboxLayout.setBackground(Theme.createRadSelectorDrawable(Theme.getColor(Theme.key_listSelector, resourcesProvider), 24, 24));
+        if (tabsView != null) {
+            tabsView.setColors(
+                Theme.key_profile_tabSelectedLine,
+                Theme.key_windowBackgroundWhiteBlackText,
+                Theme.key_profile_tabText,
+                Theme.key_profile_tabSelector,
+                Theme.key_actionBarDefault
+            );
+            tabsView.updateColors();
+        }
     }
 
     public static class UnpinSheet extends BottomSheet {

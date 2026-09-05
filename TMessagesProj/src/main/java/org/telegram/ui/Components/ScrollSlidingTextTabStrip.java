@@ -664,6 +664,9 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
         }
 //        selectorDrawable.setColor(processColor(Theme.getColor(tabLineColorKey, resourcesProvider)));
         selectorDrawable.setColor(Theme.multAlpha(processColor(Theme.getColor(activeTextColorKey, resourcesProvider)), .15f));
+        if (backgroundDrawable != null) {
+            backgroundDrawable.updateColors();
+        }
         invalidate();
     }
 

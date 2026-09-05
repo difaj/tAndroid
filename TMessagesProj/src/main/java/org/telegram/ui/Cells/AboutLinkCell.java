@@ -78,6 +78,7 @@ public class AboutLinkCell extends FrameLayout {
     private TextView showMoreTextView;
     private FrameLayout showMoreTextBackgroundView;
     private FrameLayout bottomShadow;
+    private Drawable shadowDrawable;
     private Drawable showMoreBackgroundDrawable;
 
     private LinkSpanDrawable pressedLink;
@@ -121,7 +122,7 @@ public class AboutLinkCell extends FrameLayout {
 
         valueTextView = new TextView(context);
         valueTextView.setVisibility(GONE);
-        valueTextView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider));
+        valueTextView.setTextColor(processColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider)));
         valueTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
         valueTextView.setLines(1);
         valueTextView.setMaxLines(1);
@@ -132,9 +133,11 @@ public class AboutLinkCell extends FrameLayout {
         container.addView(valueTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.BOTTOM, 18, 0, 18, 10));
 
         bottomShadow = new FrameLayout(context);
-        Drawable shadowDrawable = context.getResources().getDrawable(R.drawable.gradient_bottom).mutate();
-        shadowDrawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider), PorterDuff.Mode.SRC_ATOP));
+        shadowDrawable = context.getResources().getDrawable(R.drawable.gradient_bottom).mutate();
+        shadowDrawable.setColorFilter(new PorterDuffColorFilter(processColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider)), PorterDuff.Mode.SRC_IN));
         bottomShadow.setBackground(shadowDrawable);
+        bottomShadow.setVisibility(View.GONE);
+        bottomShadow.setAlpha(0f);
         addView(bottomShadow, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 12, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL, 16, 0, 16, 0));
 
         addView(container, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.FILL_HORIZONTAL));
@@ -164,7 +167,7 @@ public class AboutLinkCell extends FrameLayout {
                 super.onDraw(canvas);
             }
         };
-        showMoreTextView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, resourcesProvider));
+        showMoreTextView.setTextColor(processColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, resourcesProvider)));
         showMoreTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
         showMoreTextView.setLines(1);
         showMoreTextView.setMaxLines(1);
@@ -176,7 +179,7 @@ public class AboutLinkCell extends FrameLayout {
         showMoreTextView.setPadding(dp(2), 0, dp(2), 0);
         showMoreTextBackgroundView = new FrameLayout(context);
         showMoreBackgroundDrawable = context.getResources().getDrawable(R.drawable.gradient_left).mutate();
-        showMoreBackgroundDrawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider), PorterDuff.Mode.MULTIPLY));
+        showMoreBackgroundDrawable.setColorFilter(new PorterDuffColorFilter(processColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider)), PorterDuff.Mode.MULTIPLY));
         showMoreTextBackgroundView.setBackground(showMoreBackgroundDrawable);
         showMoreTextBackgroundView.setPadding(
             showMoreTextBackgroundView.getPaddingLeft() + dp(4),
@@ -186,7 +189,7 @@ public class AboutLinkCell extends FrameLayout {
         );
         showMoreTextBackgroundView.addView(showMoreTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
         addView(showMoreTextBackgroundView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.RIGHT | Gravity.BOTTOM, 18 - showMoreTextBackgroundView.getPaddingLeft() / AndroidUtilities.density, 0, 18 - showMoreTextBackgroundView.getPaddingRight() / AndroidUtilities.density, 6));
-        backgroundPaint.setColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
+        backgroundPaint.setColor(processColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider)));
 
         setWillNotDraw(false);
     }
@@ -196,7 +199,25 @@ public class AboutLinkCell extends FrameLayout {
     }
 
     public void updateColors() {
+        int bgColor = processColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
+        if (shadowDrawable != null) {
+            shadowDrawable.setColorFilter(new PorterDuffColorFilter(bgColor, PorterDuff.Mode.SRC_IN));
+        }
+        if (showMoreBackgroundDrawable != null) {
+            showMoreBackgroundDrawable.setColorFilter(new PorterDuffColorFilter(bgColor, PorterDuff.Mode.MULTIPLY));
+        }
+        backgroundPaint.setColor(bgColor);
+        if (valueTextView != null) {
+            valueTextView.setTextColor(processColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider)));
+        }
+        if (showMoreTextView != null) {
+            showMoreTextView.setTextColor(processColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, resourcesProvider)));
+        }
         Theme.profile_aboutTextPaint.linkColor = processColor(Theme.getColor(Theme.key_chat_messageLinkIn, resourcesProvider));
+        Theme.profile_aboutTextPaint.setColor(processColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider)));
+        int maxWidth = lastMaxWidth > 0 ? lastMaxWidth : (AndroidUtilities.displaySize.x - dp(18 + 18));
+        checkTextLayout(maxWidth, true);
+        invalidate();
     }
 
     @Override
@@ -264,7 +285,7 @@ public class AboutLinkCell extends FrameLayout {
         drawText(canvas);
 
         float viewAlpha = showMoreTextBackgroundView.getAlpha();
-        if (viewAlpha > 0) {
+        if (viewAlpha > 0 && shouldExpand && !moreButtonDisabled) {
             canvas.save();
             canvas.saveLayerAlpha(0, 0, getWidth(), getHeight(), (int) (viewAlpha * 255), Canvas.ALL_SAVE_FLAG);
             showMoreBackgroundDrawable.setAlpha((int) (alpha * 255));
@@ -273,7 +294,7 @@ public class AboutLinkCell extends FrameLayout {
             canvas.restore();
         }
         viewAlpha = bottomShadow.getAlpha();
-        if (viewAlpha > 0) {
+        if (viewAlpha > 0 && shouldExpand && !moreButtonDisabled) {
             canvas.save();
             canvas.saveLayerAlpha(0, 0, getWidth(), getHeight(), (int) (viewAlpha * 255), Canvas.ALL_SAVE_FLAG);
             canvas.translate(bottomShadow.getLeft(), bottomShadow.getTop());
@@ -296,6 +317,7 @@ public class AboutLinkCell extends FrameLayout {
 
         try {
             Theme.profile_aboutTextPaint.linkColor = processColor(Theme.getColor(Theme.key_chat_messageLinkIn, resourcesProvider));
+            Theme.profile_aboutTextPaint.setColor(processColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider)));
             if (firstThreeLinesLayout == null || !shouldExpand) {
                 if (textLayout != null) {
                     textLayout.draw(canvas);
@@ -358,7 +380,11 @@ public class AboutLinkCell extends FrameLayout {
     }
 
     public void setTextAndValue(String text, String value, boolean parseLinks) {
-        if (TextUtils.isEmpty(text) || TextUtils.equals(text, oldText)) {
+        if (TextUtils.isEmpty(text)) {
+            return;
+        }
+        if (TextUtils.equals(text, oldText)) {
+            updateColors();
             return;
         }
         try {
@@ -369,6 +395,8 @@ public class AboutLinkCell extends FrameLayout {
         stringBuilder = new SpannableStringBuilder(oldText);
         accessibilityText = null;
         MessageObject.addLinks(false, stringBuilder, false, false, !parseLinks);
+        Theme.profile_aboutTextPaint.linkColor = processColor(Theme.getColor(Theme.key_chat_messageLinkIn, resourcesProvider));
+        Theme.profile_aboutTextPaint.setColor(processColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider)));
         Emoji.replaceEmoji(stringBuilder, Theme.profile_aboutTextPaint.getFontMetricsInt(), false);
         if (lastMaxWidth <= 0) {
             lastMaxWidth = AndroidUtilities.displaySize.x - dp(18 + 18);
@@ -756,7 +784,20 @@ public class AboutLinkCell extends FrameLayout {
                 );
             }
         }
-        showMoreTextView.setVisibility(shouldExpand ? View.VISIBLE : View.GONE);
+        boolean visible = shouldExpand && !moreButtonDisabled;
+        showMoreTextView.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (showMoreTextBackgroundView != null) {
+            showMoreTextBackgroundView.setVisibility(visible ? View.VISIBLE : View.GONE);
+            if (!visible) {
+                showMoreTextBackgroundView.setAlpha(0f);
+            }
+        }
+        if (bottomShadow != null) {
+            bottomShadow.setVisibility(visible ? View.VISIBLE : View.GONE);
+            if (!visible) {
+                bottomShadow.setAlpha(0f);
+            }
+        }
         if (!shouldExpand && container.getBackground() == null) {
             container.setBackground(rippleBackground);
         }
@@ -829,5 +870,19 @@ public class AboutLinkCell extends FrameLayout {
 
     public void setMoreButtonDisabled(boolean moreButtonDisabled) {
         this.moreButtonDisabled = moreButtonDisabled;
+        if (moreButtonDisabled) {
+            shouldExpand = false;
+            if (bottomShadow != null) {
+                bottomShadow.setVisibility(View.GONE);
+                bottomShadow.setAlpha(0f);
+            }
+            if (showMoreTextView != null) {
+                showMoreTextView.setVisibility(View.GONE);
+            }
+            if (showMoreTextBackgroundView != null) {
+                showMoreTextBackgroundView.setVisibility(View.GONE);
+                showMoreTextBackgroundView.setAlpha(0f);
+            }
+        }
     }
 }

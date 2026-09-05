@@ -37,13 +37,35 @@ public class BlurredBackgroundProviderImpl {
     public static BlurredBackgroundProvider topPanel(Theme.ResourcesProvider resourcesProvider) {
         return new BlurredBackgroundProviderBuilder(resourcesProvider)
             .setBackgroundColor((r, isDark) -> {
+                if (r != null) {
+                    int target = r.getColor(Theme.key_glass_targetMainTopPanel);
+                    if (target != 0 && Color.alpha(target) < 255) {
+                        return target;
+                    }
+                }
                 final float alpha = LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS) ? 0.85f : 0.76f;
                 final int colorBg = Theme.getColor(Theme.key_windowBackgroundWhite, r);
                 final int colorTarget = Theme.getColor(Theme.key_glass_targetMainTopPanel, r);
                 return solveSrcColor(colorBg, colorTarget, alpha);
             })
-            .setStrokeColorTop(0x11000000, 0x06FFFFFF)
-            .setStrokeColorBottom(0x20000000, 0x11FFFFFF)
+            .setStrokeColorTop((r, isDark) -> {
+                if (r != null) {
+                    int target = r.getColor(Theme.key_glass_targetMainTopPanel);
+                    if (target != 0 && Color.alpha(target) < 255) {
+                        return 0x14FFFFFF;
+                    }
+                }
+                return isDark ? 0x06FFFFFF : 0x11000000;
+            })
+            .setStrokeColorBottom((r, isDark) -> {
+                if (r != null) {
+                    int target = r.getColor(Theme.key_glass_targetMainTopPanel);
+                    if (target != 0 && Color.alpha(target) < 255) {
+                        return 0x1AFFFFFF;
+                    }
+                }
+                return isDark ? 0x11FFFFFF : 0x20000000;
+            })
             .setShadowColor(0x20000000, 0x04FFFFFF)
             .setShadowLayer(dpf2(2.667f), 0, dpf2(0.85f))
             .setStrokeWidth(dpf2(0.4f), dpf2(0.4f))

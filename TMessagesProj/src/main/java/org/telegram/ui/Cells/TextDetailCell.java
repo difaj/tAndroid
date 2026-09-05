@@ -293,11 +293,11 @@ public class TextDetailCell extends FrameLayout {
 
     public void updateColors() {
         textView.setLinkTextColor(processColor(Theme.getColor(Theme.key_chat_messageLinkIn, resourcesProvider)));
-        textView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider));
+        textView.setTextColor(processColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider)));
         textView.invalidate();
         valueTextView.setLinkTextColor(processColor(Theme.getColor(Theme.key_chat_messageLinkIn, resourcesProvider)));
-        valueTextView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider));
-        rightValueTextView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider));
+        valueTextView.setTextColor(processColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider)));
+        rightValueTextView.setTextColor(processColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider)));
         valueTextView.invalidate();
     }
 

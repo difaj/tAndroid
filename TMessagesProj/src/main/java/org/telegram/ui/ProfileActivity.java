@@ -44,6 +44,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorFilter;
+import android.graphics.LinearGradient;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
@@ -1355,15 +1356,17 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             int y1 = (int) (v * (1.0f - mediaHeaderAnimationProgress));
 
             if (y1 != 0) {
-                paint.setColor(currentColor);
                 updateBackgroundPaint();
-                final float progressToGradient = (playProfileAnimation == 0 ? 1f : avatarAnimationProgress) * hasColorAnimated.set(hasColorById);
-                if (progressToGradient < 1) {
-                    canvas.drawRect(0, 0, getMeasuredWidth(), y1, paint);
-                }
-                if (progressToGradient > 0) {
-                    backgroundPaint.setAlpha((int) (0xFF * progressToGradient));
-                    canvas.drawRect(0, 0, getMeasuredWidth(), y1, backgroundPaint);
+                if (peerColor == null) {
+                    paint.setColor(currentColor);
+                    final float progressToGradient = (playProfileAnimation == 0 ? 1f : avatarAnimationProgress) * hasColorAnimated.set(hasColorById);
+                    if (progressToGradient < 1) {
+                        canvas.drawRect(0, 0, getMeasuredWidth(), y1, paint);
+                    }
+                    if (progressToGradient > 0 && !hasColorById) {
+                        backgroundPaint.setAlpha((int) (0xFF * progressToGradient));
+                        canvas.drawRect(0, 0, getMeasuredWidth(), y1, backgroundPaint);
+                    }
                 }
                 if (hasEmoji) {
                     final float loadedScale = emojiLoadedT.set(isEmojiLoaded());
@@ -1389,7 +1392,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     }
                 }
             }
-            if (y1 != v && !openAnimationInProgress) {
+            if (y1 != v && !openAnimationInProgress && peerColor == null) {
                 int color = getThemedColor(Theme.key_windowBackgroundWhite);
                 paint.setColor(color);
                 blurBounds.set(0, y1, getMeasuredWidth(), (int) v);
@@ -3293,6 +3296,29 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
             @Override
             protected void dispatchDraw(Canvas canvas) {
+                if (peerColor != null) {
+                    int c1 = topView != null && topView.color1 != 0 ? topView.color1 : peerColor.getBgColor1(Theme.isCurrentThemeDark());
+                    int c2 = topView != null && topView.color2 != 0 ? topView.color2 : peerColor.getBgColor2(Theme.isCurrentThemeDark());
+                    if (c2 == 0) c2 = c1;
+                    int c3 = ColorUtils.blendARGB(c2, Theme.isCurrentThemeDark() ? 0xFF000000 : 0xFFFFFFFF, Theme.isCurrentThemeDark() ? 0.35f : 0.20f);
+                    int h = getMeasuredHeight();
+                    if (profileGradientShader == null || profileGradientColor1 != c1 || profileGradientColor2 != c2 || profileGradientHeight != h) {
+                        profileGradientColor1 = c1;
+                        profileGradientColor2 = c2;
+                        profileGradientHeight = h;
+                        profileGradientShader = new LinearGradient(0, 0, 0, h, new int[]{c1, c2, c3}, new float[]{0f, 0.45f, 1f}, Shader.TileMode.CLAMP);
+                        profileGradientPaint.setShader(profileGradientShader);
+                    }
+                    canvas.drawRect(0, 0, getMeasuredWidth(), h, profileGradientPaint);
+                    if (listView != null && listView.getBackground() != null) {
+                        listView.setBackground(null);
+                    }
+                } else {
+                    if (listView != null && listView.getBackground() == null) {
+                        listView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
+                    }
+                }
+
                 if (Build.VERSION.SDK_INT >= 31 && scrollableViewNoiseSuppressor != null) {
                     blur3_InvalidateBlur();
 
@@ -3301,7 +3327,15 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     if (iBlur3SourceGlass != null && !iBlur3SourceGlass.inRecording()) {
                         //if (iBlur3SourceGlass.needUpdateDisplayList(width, height) || iBlur3Invalidated) {
                         final Canvas c = iBlur3SourceGlass.beginRecording(width, height);
-                        c.drawColor(getThemedColor(Theme.key_windowBackgroundGray));
+                        if (peerColor != null) {
+                            if (profileGradientPaint != null && profileGradientShader != null) {
+                                c.drawRect(0, 0, width, height, profileGradientPaint);
+                            } else {
+                                c.drawColor(getTabBackgroundColor());
+                            }
+                        } else {
+                            c.drawColor(getThemedColor(Theme.key_windowBackgroundGray));
+                        }
                         if (SharedConfig.chatBlurEnabled()) {
                             scrollableViewNoiseSuppressor.draw(c, DownscaleScrollableNoiseSuppressor.DRAW_GLASS);
                         }
@@ -3680,7 +3714,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         } else if (users != null) {
             initialTab = SharedMediaLayout.TAB_GROUPUSERS;
         }
-        sharedMediaLayout = new SharedMediaLayout(context, did, sharedMediaPreloader, userInfo != null ? userInfo.common_chats_count : 0, sortedUsers, chatInfo, userInfo, initialTab, initialStoryAlbum, this, this, SharedMediaLayout.VIEW_TYPE_PROFILE_ACTIVITY, resourcesProvider, iBlur3FactoryLiquidGlass) {
+        sharedMediaLayout = new SharedMediaLayout(context, did, sharedMediaPreloader, userInfo != null ? userInfo.common_chats_count : 0, sortedUsers, chatInfo, userInfo, initialTab, initialStoryAlbum, this, this, SharedMediaLayout.VIEW_TYPE_PROFILE_ACTIVITY, getResourceProvider(), iBlur3FactoryLiquidGlass) {
             @Override
             protected int processColor(int color) {
                 return dontApplyPeerColor(color, false);
@@ -4088,7 +4122,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         contentView = ((NestedFrameLayout) fragmentView);
         contentView.needBlur = true;
 
-        listView = new ClippedListView(context, resourcesProvider) {
+        listView = new ClippedListView(context, getResourceProvider()) {
 
             private VelocityTracker velocityTracker;
 
@@ -11250,6 +11284,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     }
 
     private MessagesController.PeerColor peerColor;
+    private final Paint profileGradientPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private LinearGradient profileGradientShader;
+    private int profileGradientColor1, profileGradientColor2, profileGradientHeight;
 
     private void updateProfileData(boolean reload) {
         if (avatarContainer == null || nameTextView == null || getParentActivity() == null) {
@@ -11945,8 +11982,19 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
     private void updatedPeerColor() {
         adaptedColors.clear();
+        profileGradientShader = null;
         if (topView != null) {
             topView.setBackgroundColorId(peerColor, true);
+        }
+        if (listView != null) {
+            if (peerColor != null) {
+                listView.setBackground(null);
+            } else {
+                listView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
+            }
+        }
+        if (fragmentView != null) {
+            fragmentView.invalidate();
         }
         if (onlineTextView[1] != null) {
             int statusColor;
@@ -12011,6 +12059,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (sharedMediaLayout != null && sharedMediaLayout.giftsContainer != null) {
             sharedMediaLayout.giftsContainer.updateColors();
         }
+        if (sharedMediaLayout != null && sharedMediaLayout.storiesContainer != null) {
+            sharedMediaLayout.storiesContainer.updateColors();
+        }
+        if (listAdapter != null) {
+            listAdapter.notifyDataSetChanged();
+        }
         writeButtonSetBackground();
         updateEmojiStatusDrawableColor();
         if (storyView != null) {
@@ -12031,7 +12085,59 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
     private final SparseIntArray adaptedColors = new SparseIntArray();
 
+    public int getProfileCardColor() {
+        if (peerColor == null) {
+            return getThemedColor(Theme.key_windowBackgroundWhite);
+        }
+        int c1 = topView != null && topView.color1 != 0 ? topView.color1 : peerColor.getBgColor1(Theme.isCurrentThemeDark());
+        return ColorUtils.blendARGB(c1, Theme.isCurrentThemeDark() ? 0xFF000000 : 0xFFFFFFFF, Theme.isCurrentThemeDark() ? 0.15f : 0.08f);
+    }
+
     private int dontApplyPeerColor(int color, boolean actionBar, Boolean online) {
+        if (peerColor != null && !actionBar) {
+            if (color == 0xFFFFFFFF || color == 0xD9FFFFFF || color == 0x1AFFFFFF || color == 0x26FFFFFF || color == 0x33000000) {
+                return color;
+            }
+            int blackText = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider);
+            int blueText = Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, resourcesProvider);
+            int blueText2 = Theme.getColor(Theme.key_windowBackgroundWhiteBlueText2, resourcesProvider);
+            int valueText = Theme.getColor(Theme.key_windowBackgroundWhiteValueText, resourcesProvider);
+            int tabSelectedText = Theme.getColor(Theme.key_profile_tabSelectedText, resourcesProvider);
+            int chatsName = Theme.getColor(Theme.key_chats_name, resourcesProvider);
+            int chatsNameMessage = Theme.getColor(Theme.key_chats_nameMessage, resourcesProvider);
+            if (color == blackText || color == blueText || color == blueText2 || color == valueText || color == tabSelectedText || color == chatsName || color == chatsNameMessage) {
+                return 0xFFFFFFFF;
+            }
+            int grayText = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, resourcesProvider);
+            int grayText2 = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider);
+            int grayText3 = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText3, resourcesProvider);
+            int blueHeader = Theme.getColor(Theme.key_windowBackgroundWhiteBlueHeader, resourcesProvider);
+            int grayIcon = Theme.getColor(Theme.key_windowBackgroundWhiteGrayIcon, resourcesProvider);
+            int actionIcon = Theme.getColor(Theme.key_actionBarDefaultIcon, resourcesProvider);
+            int tabText = Theme.getColor(Theme.key_profile_tabText, resourcesProvider);
+            int chatsMessage = Theme.getColor(Theme.key_chats_message, resourcesProvider);
+            int chatsDate = Theme.getColor(Theme.key_chats_date, resourcesProvider);
+            int chatsAttach = Theme.getColor(Theme.key_chats_attachMessage, resourcesProvider);
+            int chatsAction = Theme.getColor(Theme.key_chats_actionMessage, resourcesProvider);
+            if (color == grayText || color == grayText2 || color == grayText3 || color == blueHeader || color == grayIcon || color == actionIcon || color == tabText || color == chatsMessage || color == chatsDate || color == chatsAttach || color == chatsAction) {
+                return 0xD9FFFFFF;
+            }
+            if (color == Theme.getColor(Theme.key_divider, resourcesProvider)) {
+                return 0x1AFFFFFF;
+            }
+            if (color == Theme.getColor(Theme.key_profile_tabSelectedLine, resourcesProvider)) {
+                return ColorUtils.blendARGB(getProfileCardColor(), 0xFFFFFFFF, 0.25f);
+            }
+            if (color == Theme.getColor(Theme.key_profile_tabSelector, resourcesProvider)) {
+                return 0x1AFFFFFF;
+            }
+            if (color == Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider) || color == getProfileCardColor()) {
+                return getProfileCardColor();
+            }
+            if (AndroidUtilities.computePerceivedBrightness(color) < 0.5f) {
+                return 0xFFFFFFFF;
+            }
+        }
         return color;
     }
 
@@ -12477,13 +12583,72 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         updateAutoDeleteItem();
     }
 
+    private Theme.ResourcesProvider customResourcesProvider;
+
     @Override
     public Theme.ResourcesProvider getResourceProvider() {
-        return resourcesProvider;
+        if (customResourcesProvider == null) {
+            customResourcesProvider = new Theme.ResourcesProvider() {
+                @Override
+                public int getColor(int key) {
+                    if (peerColor != null) {
+                        if (key == Theme.key_windowBackgroundWhiteBlackText || key == Theme.key_windowBackgroundWhiteBlueText || key == Theme.key_windowBackgroundWhiteBlueText2 || key == Theme.key_windowBackgroundWhiteValueText || key == Theme.key_profile_tabSelectedText || key == Theme.key_chats_name || key == Theme.key_chats_nameMessage || key == Theme.key_chat_messageLinkIn || key == Theme.key_windowBackgroundWhiteLinkText || key == Theme.key_dialogTextBlack) {
+                            return 0xFFFFFFFF;
+                        }
+                        if (key == Theme.key_windowBackgroundWhiteGrayText || key == Theme.key_windowBackgroundWhiteGrayText2 || key == Theme.key_windowBackgroundWhiteGrayText3 || key == Theme.key_windowBackgroundWhiteBlueHeader || key == Theme.key_windowBackgroundWhiteGrayIcon || key == Theme.key_actionBarDefaultIcon || key == Theme.key_profile_tabText || key == Theme.key_chats_message || key == Theme.key_chats_date || key == Theme.key_chats_attachMessage || key == Theme.key_chats_actionMessage || key == Theme.key_chats_sentReadCheck || key == Theme.key_chats_sentCheck) {
+                            return 0xD9FFFFFF;
+                        }
+                        if (key == Theme.key_glass_targetMainTopPanel) {
+                            return 0x33000000;
+                        }
+                        if (key == Theme.key_divider) {
+                            return 0x1AFFFFFF;
+                        }
+                        if (key == Theme.key_profile_tabSelectedLine) {
+                            return 0x26FFFFFF;
+                        }
+                        if (key == Theme.key_profile_tabSelector) {
+                            return 0x1AFFFFFF;
+                        }
+                        if (key == Theme.key_windowBackgroundWhite) {
+                            return getProfileCardColor();
+                        }
+                    }
+                    int color;
+                    if (resourcesProvider != null) {
+                        color = resourcesProvider.getColor(key);
+                    } else {
+                        color = Theme.getColor(key);
+                    }
+                    return peerColor != null ? dontApplyPeerColor(color, false) : color;
+                }
+
+                @Override
+                public Drawable getDrawable(String key) {
+                    return resourcesProvider != null ? resourcesProvider.getDrawable(key) : Theme.getThemeDrawable(key);
+                }
+
+                @Override
+                public Paint getPaint(String key) {
+                    return resourcesProvider != null ? resourcesProvider.getPaint(key) : Theme.getThemePaint(key);
+                }
+
+                @Override
+                public boolean hasGradientService() {
+                    return resourcesProvider != null && resourcesProvider.hasGradientService();
+                }
+
+                @Override
+                public boolean isDark() {
+                    return peerColor != null ? true : (resourcesProvider != null ? resourcesProvider.isDark() : Theme.isCurrentThemeDark());
+                }
+            };
+        }
+        return customResourcesProvider;
     }
 
     public int getThemedColor(int key) {
-        return Theme.getColor(key, resourcesProvider);
+        return Theme.getColor(key, getResourceProvider());
     }
 
     @Override
@@ -13127,13 +13292,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             View view;
             switch (viewType) {
                 case VIEW_TYPE_HEADER: {
-                    view = new HeaderCell(mContext, 18, resourcesProvider);
+                    view = new HeaderCell(mContext, 18, getResourceProvider());
                     break;
                 }
                 case VIEW_TYPE_TEXT_DETAIL_MULTILINE:
                 case VIEW_TYPE_TEXT_DETAIL_MULTILINE_2:
                 case VIEW_TYPE_TEXT_DETAIL:
-                    final TextDetailCell textDetailCell = new TextDetailCell(mContext, 18, resourcesProvider, viewType == VIEW_TYPE_TEXT_DETAIL_MULTILINE_2, viewType == VIEW_TYPE_TEXT_DETAIL_MULTILINE) {
+                    final TextDetailCell textDetailCell = new TextDetailCell(mContext, 18, getResourceProvider(), viewType == VIEW_TYPE_TEXT_DETAIL_MULTILINE_2, viewType == VIEW_TYPE_TEXT_DETAIL_MULTILINE) {
                         @Override
                         protected int processColor(int color) {
                             return dontApplyPeerColor(color, false);
@@ -13143,14 +13308,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     view = textDetailCell;
                     break;
                 case VIEW_TYPE_LINKED_COMMUNITY:
-                    view = new CommunityLinkView(mContext, resourcesProvider);
+                    view = new CommunityLinkView(mContext, getResourceProvider());
                     break;
                 case VIEW_TYPE_TEXT2:
                     final TextView textView = new TextView2(mContext);
                     view = textView;
                     break;
                 case VIEW_TYPE_ABOUT_LINK: {
-                    view = aboutLinkCell = new AboutLinkCell(mContext, ProfileActivity.this, resourcesProvider) {
+                    view = aboutLinkCell = new AboutLinkCell(mContext, ProfileActivity.this, getResourceProvider()) {
                         @Override
                         protected void didPressUrl(String url, Browser.Progress progress) {
                             openUrl(url, progress);
@@ -13174,7 +13339,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     break;
                 }
                 case VIEW_TYPE_TEXT: {
-                    view = new TextCell(mContext, 18, false, false, resourcesProvider) {
+                    view = new TextCell(mContext, 18, false, false, getResourceProvider()) {
                         @Override
                         protected int processColor(int color) {
                             return dontApplyPeerColor(color, false);
@@ -13183,12 +13348,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     break;
                 }
                 case VIEW_TYPE_DIVIDER: {
-                    view = new DividerCell(mContext, resourcesProvider);
+                    view = new DividerCell(mContext, getResourceProvider());
                     view.setPadding(AndroidUtilities.dp(20), AndroidUtilities.dp(4), 0, 0);
                     break;
                 }
                 case VIEW_TYPE_NOTIFICATIONS_CHECK: {
-                    view = new NotificationsCheckCell(mContext, 18, 70, false, resourcesProvider) {
+                    view = new NotificationsCheckCell(mContext, 18, 70, false, getResourceProvider()) {
                         @Override
                         protected int processColor(int color) {
                             return dontApplyPeerColor(color, false);
@@ -13197,23 +13362,23 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     break;
                 }
                 case VIEW_TYPE_NOTIFICATIONS_CHECK_SIMPLE: {
-                    view = new TextCheckCell(mContext, 18, false, resourcesProvider);
+                    view = new TextCheckCell(mContext, 18, false, getResourceProvider());
                     break;
                 }
                 case VIEW_TYPE_SHADOW: {
-                    view = new ShadowSectionCell(mContext, resourcesProvider);
+                    view = new ShadowSectionCell(mContext, getResourceProvider());
                     break;
                 }
                 case VIEW_TYPE_SHADOW_TEXT: {
-                    view = new TextInfoPrivacyCell(mContext, resourcesProvider);
+                    view = new TextInfoPrivacyCell(mContext, getResourceProvider());
                     break;
                 }
                 case VIEW_TYPE_COLORFUL_TEXT: {
-                    view = new AffiliateProgramFragment.ColorfulTextCell(mContext, resourcesProvider);
+                    view = new AffiliateProgramFragment.ColorfulTextCell(mContext, getResourceProvider());
                     break;
                 }
                 case VIEW_TYPE_USER: {
-                    view = new UserCell(mContext, addMemberRow == -1 ? 9 : 6, 0, true, resourcesProvider);
+                    view = new UserCell(mContext, addMemberRow == -1 ? 9 : 6, 0, true, getResourceProvider());
                     break;
                 }
                 case VIEW_TYPE_EMPTY:
@@ -13377,33 +13542,36 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             return new RecyclerListView.Holder(view);
         }
 
+        private boolean isSectionEdge(int position) {
+            if (position < 0 || position >= getItemCount()) return true;
+            int type = getItemViewType(position);
+            return type == VIEW_TYPE_HEADER || type == VIEW_TYPE_HEADER_EMPTY || type == VIEW_TYPE_EMPTY || type == VIEW_TYPE_EMPTY2 || type == VIEW_TYPE_SHADOW || type == VIEW_TYPE_SHADOW_TEXT || type == VIEW_TYPE_DIVIDER || type == VIEW_TYPE_BOTTOM_PADDING || type == VIEW_TYPE_SHARED_MEDIA;
+        }
+
+        public void setBackground(View view, int position, int viewType) {
+            if (peerColor != null) {
+                if (viewType == VIEW_TYPE_HEADER || viewType == VIEW_TYPE_HEADER_EMPTY || viewType == VIEW_TYPE_EMPTY || viewType == VIEW_TYPE_EMPTY2 || viewType == VIEW_TYPE_SHADOW || viewType == VIEW_TYPE_SHADOW_TEXT || viewType == VIEW_TYPE_DIVIDER || viewType == VIEW_TYPE_BOTTOM_PADDING || viewType == VIEW_TYPE_SHARED_MEDIA) {
+                    view.setBackground(null);
+                    return;
+                }
+                int pos = position >= 0 ? position : (listView != null ? listView.getChildAdapterPosition(view) : -1);
+                boolean topRadius = pos <= 0 || isSectionEdge(pos - 1);
+                boolean botRadius = pos < 0 || pos + 1 >= getItemCount() || isSectionEdge(pos + 1);
+                int rad = dp(16);
+                view.setBackground(Theme.createRoundRectDrawable(topRadius ? rad : 0, botRadius ? rad : 0, getProfileCardColor()));
+            } else {
+                if (viewType == VIEW_TYPE_BOT_APP || viewType == VIEW_TYPE_CHANNEL || viewType == VIEW_TYPE_STARS_TEXT_CELL || viewType == VIEW_TYPE_PREMIUM_TEXT_CELL || viewType == VIEW_TYPE_LOCATION || viewType == VIEW_TYPE_HOURS || viewType == VIEW_TYPE_ADDTOGROUP_INFO || viewType == VIEW_TYPE_USER || viewType == VIEW_TYPE_COLORFUL_TEXT || viewType == VIEW_TYPE_NOTIFICATIONS_CHECK_SIMPLE || viewType == VIEW_TYPE_NOTIFICATIONS_CHECK || viewType == VIEW_TYPE_TEXT || viewType == VIEW_TYPE_ABOUT_LINK || viewType == VIEW_TYPE_TEXT_DETAIL_MULTILINE || viewType == VIEW_TYPE_TEXT_DETAIL_MULTILINE_2 || viewType == VIEW_TYPE_TEXT_DETAIL) {
+                    view.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
+                } else if (viewType == VIEW_TYPE_VERSION) {
+                    view.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
+                } else {
+                    view.setBackground(null);
+                }
+            }
+        }
+
         public void setBackground(View view, int viewType) {
-//            switch (viewType) {
-//                case VIEW_TYPE_BOT_APP:
-//                case VIEW_TYPE_CHANNEL:
-//                case VIEW_TYPE_STARS_TEXT_CELL:
-//                case VIEW_TYPE_PREMIUM_TEXT_CELL:
-//                case VIEW_TYPE_LOCATION:
-//                case VIEW_TYPE_HOURS:
-//                case VIEW_TYPE_ADDTOGROUP_INFO:
-//                case VIEW_TYPE_HEADER_EMPTY:
-//                case VIEW_TYPE_USER:
-//                case VIEW_TYPE_COLORFUL_TEXT:
-//                case VIEW_TYPE_NOTIFICATIONS_CHECK_SIMPLE:
-//                case VIEW_TYPE_NOTIFICATIONS_CHECK:
-//                case VIEW_TYPE_DIVIDER:
-//                case VIEW_TYPE_TEXT:
-//                case VIEW_TYPE_ABOUT_LINK:
-//                case VIEW_TYPE_HEADER:
-//                case VIEW_TYPE_TEXT_DETAIL_MULTILINE:
-//                case VIEW_TYPE_TEXT_DETAIL_MULTILINE_2:
-//                case VIEW_TYPE_TEXT_DETAIL:
-//                    view.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
-//                    break;
-//                case VIEW_TYPE_VERSION:
-//                    view.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
-//                    break;
-//            }
+            setBackground(view, -1, viewType);
         }
 
         @Override
@@ -13426,6 +13594,75 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
         @Override
         public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
+            setBackground(holder.itemView, position, holder.getItemViewType());
+            if (peerColor != null) {
+                if (holder.itemView instanceof TextDetailCell) {
+                    TextDetailCell detailCell = (TextDetailCell) holder.itemView;
+                    detailCell.textView.setTextColor(0xFFFFFFFF);
+                    detailCell.valueTextView.setTextColor(0xD9FFFFFF);
+                    detailCell.rightValueTextView.setTextColor(0xD9FFFFFF);
+                    detailCell.textView.setLinkTextColor(0xFFFFFFFF);
+                    detailCell.valueTextView.setLinkTextColor(0xFFFFFFFF);
+                } else if (holder.itemView instanceof AboutLinkCell) {
+                    Theme.profile_aboutTextPaint.setColor(0xFFFFFFFF);
+                    Theme.profile_aboutTextPaint.linkColor = 0xFFFFFFFF;
+                    ((AboutLinkCell) holder.itemView).updateColors();
+                } else if (holder.itemView instanceof TextCell) {
+                    TextCell textCell = (TextCell) holder.itemView;
+                    textCell.textView.setTextColor(0xFFFFFFFF);
+                    if (textCell.valueTextView != null) {
+                        textCell.valueTextView.setTextColor(0xD9FFFFFF);
+                    }
+                    if (textCell.imageView != null && textCell.imageView.getDrawable() != null) {
+                        textCell.imageView.setColorFilter(new PorterDuffColorFilter(0xD9FFFFFF, PorterDuff.Mode.MULTIPLY));
+                    }
+                } else if (holder.itemView instanceof HeaderCell) {
+                    HeaderCell headerCell = (HeaderCell) holder.itemView;
+                    headerCell.setTextColor(0xD9FFFFFF);
+                } else if (holder.itemView instanceof ProfileChannelCell) {
+                    ((ProfileChannelCell) holder.itemView).updateColors();
+                } else if (holder.itemView instanceof ProfileHoursCell) {
+                    ((ProfileHoursCell) holder.itemView).updateColors();
+                } else if (holder.itemView instanceof UserCell) {
+                    UserCell userCell = (UserCell) holder.itemView;
+                    if (userCell.nameTextView != null) {
+                        userCell.nameTextView.setTextColor(0xFFFFFFFF);
+                    }
+                    if (userCell.statusTextView != null) {
+                        userCell.statusTextView.setTextColor(0xD9FFFFFF);
+                    }
+                }
+            } else {
+                if (holder.itemView instanceof TextDetailCell) {
+                    ((TextDetailCell) holder.itemView).updateColors();
+                } else if (holder.itemView instanceof AboutLinkCell) {
+                    ((AboutLinkCell) holder.itemView).updateColors();
+                } else if (holder.itemView instanceof TextCell) {
+                    TextCell textCell = (TextCell) holder.itemView;
+                    textCell.textView.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteBlackText));
+                    if (textCell.valueTextView != null) {
+                        textCell.valueTextView.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteValueText));
+                    }
+                    if (textCell.imageView != null) {
+                        textCell.imageView.setColorFilter(null);
+                    }
+                } else if (holder.itemView instanceof HeaderCell) {
+                    HeaderCell headerCell = (HeaderCell) holder.itemView;
+                    headerCell.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteBlueHeader));
+                } else if (holder.itemView instanceof ProfileChannelCell) {
+                    ((ProfileChannelCell) holder.itemView).updateColors();
+                } else if (holder.itemView instanceof ProfileHoursCell) {
+                    ((ProfileHoursCell) holder.itemView).updateColors();
+                } else if (holder.itemView instanceof UserCell) {
+                    UserCell userCell = (UserCell) holder.itemView;
+                    if (userCell.nameTextView != null) {
+                        userCell.nameTextView.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteBlackText));
+                    }
+                    if (userCell.statusTextView != null) {
+                        userCell.statusTextView.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteGrayText));
+                    }
+                }
+            }
             switch (holder.getItemViewType()) {
                 case VIEW_TYPE_HEADER:
                     HeaderCell headerCell = (HeaderCell) holder.itemView;
@@ -13646,6 +13883,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     detailCell.setTag(position);
                     detailCell.textView.setLoading(loadingSpan);
                     detailCell.valueTextView.setLoading(loadingSpan);
+                    if (peerColor != null) {
+                        detailCell.textView.setTextColor(0xFFFFFFFF);
+                        detailCell.valueTextView.setTextColor(0xD9FFFFFF);
+                        detailCell.rightValueTextView.setTextColor(0xD9FFFFFF);
+                        detailCell.textView.setLinkTextColor(0xFFFFFFFF);
+                        detailCell.valueTextView.setLinkTextColor(0xFFFFFFFF);
+                    }
                     break;
                 case VIEW_TYPE_ABOUT_LINK:
                     AboutLinkCell aboutLinkCell = (AboutLinkCell) holder.itemView;
@@ -13670,6 +13914,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             currentBio = null;
                         }
                         aboutLinkCell.setMoreButtonDisabled(true);
+                    }
+                    if (peerColor != null) {
+                        Theme.profile_aboutTextPaint.setColor(0xFFFFFFFF);
+                        Theme.profile_aboutTextPaint.linkColor = 0xFFFFFFFF;
+                        aboutLinkCell.updateColors();
                     }
                     break;
                 case VIEW_TYPE_LINKED_COMMUNITY:
@@ -14166,10 +14415,18 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         getMessagesController().getChat(userInfo.personal_channel_id),
                         profileChannelMessageFetcher != null ? profileChannelMessageFetcher.messageObjects : null
                     );
+                    if (peerColor != null) {
+                        ((ProfileChannelCell) holder.itemView).updateColors();
+                    }
                     break;
                 case VIEW_TYPE_BOT_APP:
                     break;
                 case VIEW_TYPE_MUSIC:
+                    break;
+                case VIEW_TYPE_SHARED_MEDIA:
+                    if (peerColor != null && sharedMediaLayout != null && sharedMediaLayout.scrollSlidingTextTabStrip != null) {
+                        sharedMediaLayout.scrollSlidingTextTabStrip.updateColors();
+                    }
                     break;
             }
         }
@@ -16968,6 +17225,16 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         listView.smoothScrollToPosition(0);
     }
 
+    public int getTabBackgroundColor() {
+        if (peerColor != null) {
+            int c1 = topView != null && topView.color1 != 0 ? topView.color1 : peerColor.getBgColor1(Theme.isCurrentThemeDark());
+            int c2 = topView != null && topView.color2 != 0 ? topView.color2 : peerColor.getBgColor2(Theme.isCurrentThemeDark());
+            if (c2 == 0) c2 = c1;
+            return ColorUtils.blendARGB(c2, Theme.isCurrentThemeDark() ? 0xFF000000 : 0xFFFFFFFF, Theme.isCurrentThemeDark() ? 0.35f : 0.20f);
+        }
+        return 0;
+    }
+
     private final class TextView2 extends TextView implements Theme.Colorable {
         public TextView2(@NonNull Context context) {
             super(context);
@@ -16981,7 +17248,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
         @Override
         public void updateColors() {
-            setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider));
+            setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
         }
     }
 }

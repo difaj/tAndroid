@@ -4,6 +4,9 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.ColorFilter;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
 import android.util.TypedValue;
@@ -148,7 +151,42 @@ public class ProfileChannelCell extends FrameLayout implements Theme.Colorable {
 
     @Override
     protected void dispatchDraw(Canvas canvas) {
+        int checkColor = processColor(Theme.getColor(Theme.key_chats_sentReadCheck, resourcesProvider));
+        ColorFilter filter = new PorterDuffColorFilter(checkColor, PorterDuff.Mode.SRC_IN);
+        if (Theme.dialogs_checkReadDrawable != null) Theme.dialogs_checkReadDrawable.setColorFilter(filter);
+        if (Theme.dialogs_halfCheckDrawable != null) Theme.dialogs_halfCheckDrawable.setColorFilter(filter);
+        if (Theme.dialogs_checkDrawable != null) Theme.dialogs_checkDrawable.setColorFilter(filter);
+        int timeColor = processColor(Theme.getColor(Theme.key_chats_date, resourcesProvider));
+        int oldTimeColor = Theme.dialogs_timePaint.getColor();
+        Theme.dialogs_timePaint.setColor(timeColor);
+        int msgColor = processColor(Theme.getColor(Theme.key_chats_message, resourcesProvider));
+        int[] oldMsgColors = new int[Theme.dialogs_messagePaint.length];
+        for (int i = 0; i < Theme.dialogs_messagePaint.length; i++) {
+            oldMsgColors[i] = Theme.dialogs_messagePaint[i].getColor();
+            Theme.dialogs_messagePaint[i].setColor(msgColor);
+        }
+        int actionColor = processColor(Theme.getColor(Theme.key_chats_actionMessage, resourcesProvider));
+        int oldActionColor = Theme.dialogs_actionMessagePaint.getColor();
+        Theme.dialogs_actionMessagePaint.setColor(actionColor);
+        int[] oldPrintingColors = new int[Theme.dialogs_messagePrintingPaint.length];
+        for (int i = 0; i < Theme.dialogs_messagePrintingPaint.length; i++) {
+            oldPrintingColors[i] = Theme.dialogs_messagePrintingPaint[i].getColor();
+            Theme.dialogs_messagePrintingPaint[i].setColor(actionColor);
+        }
+
         super.dispatchDraw(canvas);
+
+        Theme.dialogs_timePaint.setColor(oldTimeColor);
+        for (int i = 0; i < Theme.dialogs_messagePaint.length; i++) {
+            Theme.dialogs_messagePaint[i].setColor(oldMsgColors[i]);
+        }
+        Theme.dialogs_actionMessagePaint.setColor(oldActionColor);
+        for (int i = 0; i < Theme.dialogs_messagePrintingPaint.length; i++) {
+            Theme.dialogs_messagePrintingPaint[i].setColor(oldPrintingColors[i]);
+        }
+        if (Theme.dialogs_checkReadDrawable != null) Theme.dialogs_checkReadDrawable.setColorFilter(null);
+        if (Theme.dialogs_halfCheckDrawable != null) Theme.dialogs_halfCheckDrawable.setColorFilter(null);
+        if (Theme.dialogs_checkDrawable != null) Theme.dialogs_checkDrawable.setColorFilter(null);
 
         float loading = loadingAlpha.set(this.loading);
         if (loading > 0) {
@@ -414,6 +452,10 @@ public class ProfileChannelCell extends FrameLayout implements Theme.Colorable {
         subscribersView.setTextColor(headerColor);
         subscribersView.setBackground(Theme.createRoundRectDrawable(dp(9f), dp(9f), Theme.multAlpha(headerColor, .1f)));
         headerView.setTextColor(headerColor);
+        if (dialogCell != null) {
+            dialogCell.buildLayout();
+            dialogCell.update(0);
+        }
     }
 
 }

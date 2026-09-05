@@ -686,7 +686,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
                         listView.scrollToPosition(0);
                     }
                 } else {
-                    new StarGiftSheet(getContext(), currentAccount, parent.dialogId, resourcesProvider)
+                    new StarGiftSheet(getContext(), currentAccount, parent.dialogId, null)
                         .setOnGiftUpdatedListener(() -> {
                             update(false);
                         })
@@ -840,7 +840,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
 
                             final boolean newPinned = !savedStarGift.pinned_to_top;
                             if (list.togglePinned(savedStarGift, newPinned, false)) {
-                                new UnpinSheet(getContext(), parent.dialogId, savedStarGift, resourcesProvider, () -> {
+                                new UnpinSheet(getContext(), parent.dialogId, savedStarGift, null, () -> {
                                     ((GiftSheet.GiftCell) view).setPinned(newPinned, true);
                                     listView.scrollToPosition(0);
                                     return BulletinFactory.of(parent.fragment);
@@ -877,7 +877,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
                     if (isMineWithActions(currentAccount, DialogObject.getPeerDialogId(gift.owner_id))) {
                         final boolean worn = StarGiftSheet.isWorn(currentAccount, gift);
                         o.add(worn ? R.drawable.menu_takeoff : R.drawable.menu_wear, getString(worn ? R.string.Gift2Unwear : R.string.Gift2Wear), () -> {
-                            new StarGiftSheet(getContext(), currentAccount, parent.dialogId, resourcesProvider) {
+                            new StarGiftSheet(getContext(), currentAccount, parent.dialogId, null) {
                                 @Override
                                 public BulletinFactory getBulletinFactory() {
                                     return BulletinFactory.of(parent.fragment);
@@ -894,7 +894,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
                             .show();
                     });
                     o.addIf(link != null, R.drawable.msg_share, getString(R.string.ShareFile), () -> {
-                        new StarGiftSheet(getContext(), currentAccount, parent.dialogId, resourcesProvider) {
+                        new StarGiftSheet(getContext(), currentAccount, parent.dialogId, null) {
                             @Override
                             public BulletinFactory getBulletinFactory() {
                                 return BulletinFactory.of(parent.fragment);
@@ -930,7 +930,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
                     final long selfId = UserConfig.getInstance(currentAccount).getClientUserId();
                     final boolean canTransfer = DialogObject.getPeerDialogId(gift.owner_id) == selfId;
                     o.addIf(canTransfer, R.drawable.menu_transfer, getString(R.string.Gift2TransferOption), () -> {
-                        new StarGiftSheet(getContext(), currentAccount, parent.dialogId, resourcesProvider) {
+                        new StarGiftSheet(getContext(), currentAccount, parent.dialogId, null) {
                             @Override
                             public BulletinFactory getBulletinFactory() {
                                 return BulletinFactory.of(parent.fragment);
@@ -1234,7 +1234,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
                 .addIf(isMine, R.drawable.menu_gift_add, getString(R.string.Gift2CollectionsAdd), this::addGifts)
                 .addIf(!TextUtils.isEmpty(username), R.drawable.msg_share, getString(R.string.Gift2CollectionsShare), () -> {
                     final String link = MessagesController.getInstance(currentAccount).linkPrefix + "/" + username + "/c/" + collection.collection_id;
-                    new ShareAlert(context, null, link, false, link, false, resourcesProvider) {
+                    new ShareAlert(context, null, link, false, link, false, null) {
                         @Override
                         protected void onSend(LongSparseArray<TLRPC.Dialog> dids, int count, TLRPC.TL_forumTopic topic, boolean showToast) {
                             if (!showToast) return;
@@ -1319,7 +1319,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
         checkbox.setDrawBackgroundAsArc(10);
         checkboxLayout.addView(checkbox, LayoutHelper.createLinear(26, 26, Gravity.CENTER_VERTICAL, 0, 0, 0, 0));
         checkboxTextView = new TextView(context);
-        checkboxTextView.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, resourcesProvider));
+        checkboxTextView.setTextColor(0xFFFFFFFF);
         checkboxTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
         checkboxTextView.setText(LocaleController.getString(R.string.Gift2ChannelNotify));
         checkboxLayout.addView(checkboxTextView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL, 9, 0, 0, 0));
@@ -1846,7 +1846,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
                 }
             }
         }
-        checkboxTextView.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, resourcesProvider));
+        checkboxTextView.setTextColor(0xFFFFFFFF);
         checkboxLayout.setBackground(Theme.createRadSelectorDrawable(Theme.getColor(Theme.key_listSelector, resourcesProvider), 24, 24));
         if (tabsView != null) {
             tabsView.setColors(
@@ -1863,21 +1863,21 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
     public static class UnpinSheet extends BottomSheet {
         long selectedGift = 0;
         public UnpinSheet(Context context, long dialogId, TL_stars.SavedStarGift newPinned, Theme.ResourcesProvider resourcesProvider, Utilities.Callback0Return<BulletinFactory> whenDone) {
-            super(context, false, resourcesProvider);
+            super(context, false, null);
             fixNavigationBar();
 
             final LinearLayout layout = new LinearLayout(context);
             layout.setOrientation(LinearLayout.VERTICAL);
 
-            final TextView titleView = TextHelper.makeTextView(context, 20, Theme.key_windowBackgroundWhiteBlackText, true, resourcesProvider);
+            final TextView titleView = TextHelper.makeTextView(context, 20, Theme.key_windowBackgroundWhiteBlackText, true, null);
             titleView.setText(getString(R.string.Gift2UnpinAlertTitle));
             layout.addView(titleView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 22, 12, 22, 0));
 
-            final TextView subtitleView = TextHelper.makeTextView(context, 14, Theme.key_windowBackgroundWhiteGrayText, false, resourcesProvider);
+            final TextView subtitleView = TextHelper.makeTextView(context, 14, Theme.key_windowBackgroundWhiteGrayText, false, null);
             subtitleView.setText(getString(R.string.Gift2UnpinAlertSubtitle));
             layout.addView(subtitleView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 22, 4.33f, 22, 10));
 
-            final ButtonWithCounterView button = new ButtonWithCounterView(context, resourcesProvider);
+            final ButtonWithCounterView button = new ButtonWithCounterView(context, null);
 
             final StarsController.GiftsList giftsList = StarsController.getInstance(currentAccount).getProfileGiftsList(dialogId);
             final UniversalRecyclerView listView = new UniversalRecyclerView(context, currentAccount, 0, (items, adapter) -> {
@@ -1903,7 +1903,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
                         }
                     }
                 }
-            }, null, resourcesProvider) {
+            }, null, null) {
                 @Override
                 public Integer getSelectorColor(int position) {
                     return 0;
@@ -1952,9 +1952,9 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
         AlertDialog[] dialog = new AlertDialog[1];
         AlertDialog.Builder builder;
         if (adaptive) {
-            builder = new AlertDialogDecor.Builder(context, resourcesProvider);
+            builder = new AlertDialogDecor.Builder(context, null);
         } else {
-            builder = new AlertDialog.Builder(context, resourcesProvider);
+            builder = new AlertDialog.Builder(context, null);
         }
         TextView[] positiveButton = new TextView[1];
 
@@ -1965,7 +1965,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
             builder.setMessage(getString(R.string.Gift2NewCollectionText));
         }
         final int MAX_LENGTH = 12;
-        EditTextCaption editText = new EditTextCaption(context, resourcesProvider) {
+        EditTextCaption editText = new EditTextCaption(context, null) {
             AnimatedColor limitColor = new AnimatedColor(this);
             private int limitCount;
             AnimatedTextView.AnimatedTextDrawable limit = new AnimatedTextView.AnimatedTextDrawable(false, true, true); {
@@ -1995,7 +1995,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
             protected void dispatchDraw(Canvas canvas) {
                 super.dispatchDraw(canvas);
 
-                limit.setTextColor(limitColor.set(Theme.getColor(limitCount < 0 ? Theme.key_text_RedRegular : Theme.key_dialogSearchHint, resourcesProvider)));
+                limit.setTextColor(limitColor.set(Theme.getColor(limitCount < 0 ? Theme.key_text_RedRegular : Theme.key_dialogSearchHint)));
                 limit.setBounds(getScrollX(), 0, getScrollX() + getWidth(), getHeight());
                 limit.draw(canvas);
             }
@@ -2026,12 +2026,12 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
         });
         MediaDataController.getInstance(currentAccount).fetchNewEmojiKeywords(AndroidUtilities.getCurrentKeyboardLanguage(), true);
         editText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18);
-        editText.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, resourcesProvider));
-        editText.setHintColor(Theme.getColor(Theme.key_groupcreate_hintText, resourcesProvider));
+        editText.setTextColor(Theme.getColor(Theme.key_dialogTextBlack));
+        editText.setHintColor(Theme.getColor(Theme.key_groupcreate_hintText));
         editText.setHintText(getString(R.string.Gift2NewCollectionHint));
         editText.setFocusable(true);
         editText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-        editText.setLineColors(Theme.getColor(Theme.key_windowBackgroundWhiteInputField, resourcesProvider), Theme.getColor(Theme.key_windowBackgroundWhiteInputFieldActivated, resourcesProvider), Theme.getColor(Theme.key_text_RedRegular, resourcesProvider));
+        editText.setLineColors(Theme.getColor(Theme.key_windowBackgroundWhiteInputField), Theme.getColor(Theme.key_windowBackgroundWhiteInputFieldActivated), Theme.getColor(Theme.key_text_RedRegular));
         editText.setImeOptions(EditorInfo.IME_ACTION_DONE);
         editText.setBackgroundDrawable(null);
         editText.setPadding(0, dp(6), 0, dp(6));
@@ -2173,7 +2173,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
 
             Utilities.Callback<ArrayList<TL_stars.SavedStarGift>> whenSelected
         ) {
-            super(fragment, false, false, ActionBarType.SLIDING);
+            super(fragment.getContext(), fragment, false, false, false, ActionBarType.SLIDING, null);
 
             ignoreTouchActionBar = false;
             headerMoveTop = dp(12);

@@ -3907,7 +3907,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     MediaController.getInstance().getPlaylist().clear();
                     MediaController.getInstance().getPlaylist().addAll(savedMusicList.list);
                     if (!sameList) MediaController.getInstance().playMessage(savedMusicList.list.get(0));
-                    showDialog(new AudioPlayerAlert(getContext(), getResourceProvider()));
+                    showDialog(new AudioPlayerAlert(getContext(), null));
                 }
             });
 
@@ -6773,7 +6773,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     final TL_stars.SavedStarGift savedStarGift = StarsController.getInstance(currentAccount).findUserStarGift(gift.id);
                     if (savedStarGift != null && MessagesController.getGlobalMainSettings().getInt("statusgiftpage", 0) < 2) {
                         MessagesController.getGlobalMainSettings().edit().putInt("statusgiftpage", MessagesController.getGlobalMainSettings().getInt("statusgiftpage", 0) + 1).apply();
-                        new StarGiftSheet(getContext(), currentAccount, UserConfig.getInstance(currentAccount).getClientUserId(), resourcesProvider)
+                        new StarGiftSheet(getContext(), currentAccount, UserConfig.getInstance(currentAccount).getClientUserId(), null)
                                 .set(savedStarGift, null)
                                 .setupWearPage()
                                 .show();
@@ -7415,7 +7415,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             } else {
                                 obj = getMessagesController().getChat(chatId);
                             }
-                            FragmentUsernameBottomSheet.open(getContext(), FragmentUsernameBottomSheet.TYPE_USERNAME, usernameObj.username, obj, (TL_fragment.TL_collectibleInfo) res, getResourceProvider());
+                            FragmentUsernameBottomSheet.open(getContext(), FragmentUsernameBottomSheet.TYPE_USERNAME, usernameObj.username, obj, (TL_fragment.TL_collectibleInfo) res, null);
                         } else {
                             BulletinFactory.showError(err);
                         }
@@ -7452,7 +7452,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 req.collectible = input;
                 int reqId = getConnectionsManager().sendRequest(req, (res, err) -> AndroidUtilities.runOnUIThread(() -> {
                     if (res instanceof TL_fragment.TL_collectibleInfo) {
-                        FragmentUsernameBottomSheet.open(getContext(), FragmentUsernameBottomSheet.TYPE_PHONE, phone, user, (TL_fragment.TL_collectibleInfo) res, getResourceProvider());
+                        FragmentUsernameBottomSheet.open(getContext(), FragmentUsernameBottomSheet.TYPE_PHONE, phone, user, (TL_fragment.TL_collectibleInfo) res, null);
                     } else {
                         BulletinFactory.showError(err);
                     }
@@ -12591,8 +12591,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             customResourcesProvider = new Theme.ResourcesProvider() {
                 @Override
                 public int getColor(int key) {
+                    if (key == Theme.key_dialogTextBlack || key == Theme.key_dialogTextGray || key == Theme.key_dialogTextGray2 || key == Theme.key_dialogTextGray3 || key == Theme.key_dialogTextGray4 || key == Theme.key_dialogTextLink || key == Theme.key_dialogTextBlue || key == Theme.key_dialogTextBlue2 || key == Theme.key_dialogBackground || key == Theme.key_dialogBackgroundGray || key == Theme.key_dialogButton || key == Theme.key_dialogButtonSelector) {
+                        return Theme.getColor(key);
+                    }
                     if (peerColor != null) {
-                        if (key == Theme.key_windowBackgroundWhiteBlackText || key == Theme.key_windowBackgroundWhiteBlueText || key == Theme.key_windowBackgroundWhiteBlueText2 || key == Theme.key_windowBackgroundWhiteValueText || key == Theme.key_profile_tabSelectedText || key == Theme.key_chats_name || key == Theme.key_chats_nameMessage || key == Theme.key_chat_messageLinkIn || key == Theme.key_windowBackgroundWhiteLinkText || key == Theme.key_dialogTextBlack) {
+                        if (key == Theme.key_windowBackgroundWhiteBlackText || key == Theme.key_windowBackgroundWhiteBlueText || key == Theme.key_windowBackgroundWhiteBlueText2 || key == Theme.key_windowBackgroundWhiteValueText || key == Theme.key_profile_tabSelectedText || key == Theme.key_chats_name || key == Theme.key_chats_nameMessage || key == Theme.key_chat_messageLinkIn || key == Theme.key_windowBackgroundWhiteLinkText) {
                             return 0xFFFFFFFF;
                         }
                         if (key == Theme.key_windowBackgroundWhiteGrayText || key == Theme.key_windowBackgroundWhiteGrayText2 || key == Theme.key_windowBackgroundWhiteGrayText3 || key == Theme.key_windowBackgroundWhiteBlueHeader || key == Theme.key_windowBackgroundWhiteGrayIcon || key == Theme.key_actionBarDefaultIcon || key == Theme.key_profile_tabText || key == Theme.key_chats_message || key == Theme.key_chats_date || key == Theme.key_chats_attachMessage || key == Theme.key_chats_actionMessage || key == Theme.key_chats_sentReadCheck || key == Theme.key_chats_sentCheck) {
@@ -14498,7 +14501,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                                 if (getContext() == null) {
                                     return;
                                 }
-                                FragmentUsernameBottomSheet.open(getContext(), FragmentUsernameBottomSheet.TYPE_USERNAME, usernameObj.username, obj, (TL_fragment.TL_collectibleInfo) res, getResourceProvider());
+                                FragmentUsernameBottomSheet.open(getContext(), FragmentUsernameBottomSheet.TYPE_USERNAME, usernameObj.username, obj, (TL_fragment.TL_collectibleInfo) res, null);
                             } else {
                                 BulletinFactory.showError(err);
                             }
@@ -16724,7 +16727,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     params.transitionFromLeft = true;
                     params.allowNestedScroll = false;
                     showAsSheet(new PrivacyControlActivity(PrivacyControlActivity.PRIVACY_RULES_TYPE_BIRTHDAY), params);
-                }, false, false, getResourceProvider()).create());
+                }, false, false, null).create());
             });
             itemOptions.add(R.drawable.msg_delete, getString(R.string.Remove), true, () -> {
                 AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());

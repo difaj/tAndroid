@@ -580,7 +580,10 @@ public class Theme {
                         if (fallbackKey >= 0 && currentColorsNoAccent.indexOfKey(fallbackKey) >= 0) {
                             continue;
                         }
-                        color = defaultColors[key];
+                        color = isDarkTheme ? getDarkDefaultColor(key) : defaultColors[key];
+                        if (color == 0) {
+                            color = defaultColors[key];
+                        }
                     } else {
                         color = currentColorsNoAccent.valueAt(index);
                     }
@@ -1433,6 +1436,25 @@ public class Theme {
             this.overrideWallpaper = other.overrideWallpaper;
         }
 
+        public static String fixPath(String path) {
+            if (TextUtils.isEmpty(path)) {
+                return path;
+            }
+            File file = new File(path);
+            if (!file.exists()) {
+                File fixed = new File(ApplicationLoader.getFilesDirFixed(), file.getName());
+                if (fixed.exists()) {
+                    return fixed.getAbsolutePath();
+                }
+                String currentFilesDir = ApplicationLoader.getFilesDirFixed().getAbsolutePath();
+                String adjusted = path.replaceAll("/data/(?:user/0|data)/[^/]+/files", currentFilesDir);
+                if (new File(adjusted).exists()) {
+                    return adjusted;
+                }
+            }
+            return path;
+        }
+
         JSONObject getSaveJson() {
             try {
                 JSONObject jsonObject = new JSONObject();
@@ -1652,8 +1674,12 @@ public class Theme {
                 isDark = LIGHT;
             }
             if (isDark == UNKNOWN) {
+                if (pathToFile != null) {
+                    pathToFile = fixPath(pathToFile);
+                }
                 String[] wallpaperLink = new String[1];
-                SparseIntArray colors = getThemeFileValues(new File(pathToFile), null, wallpaperLink);
+                File file = pathToFile != null ? new File(pathToFile) : null;
+                SparseIntArray colors = (file != null && file.exists()) ? getThemeFileValues(file, null, wallpaperLink) : null;
                 checkIsDark(colors, this);
             }
             return isDark == DARK;
@@ -1677,7 +1703,7 @@ public class Theme {
             try {
                 ThemeInfo themeInfo = new ThemeInfo();
                 themeInfo.name = object.getString("name");
-                themeInfo.pathToFile = object.getString("path");
+                themeInfo.pathToFile = fixPath(object.getString("path"));
                 if (object.has("account")) {
                     themeInfo.account = object.getInt("account");
                 }
@@ -1709,7 +1735,7 @@ public class Theme {
             }
             ThemeInfo themeInfo = new ThemeInfo();
             themeInfo.name = args[0];
-            themeInfo.pathToFile = args[1];
+            themeInfo.pathToFile = fixPath(args[1]);
             return themeInfo;
         }
 
@@ -5646,7 +5672,18 @@ public class Theme {
                 if (themeInfo.assetName != null) {
                     currentColorsNoAccent = getThemeFileValues(null, themeInfo.assetName, null);
                 } else {
-                    currentColorsNoAccent = getThemeFileValues(new File(themeInfo.pathToFile), null, wallpaperLink);
+                    if (themeInfo.pathToFile != null) {
+                        themeInfo.pathToFile = ThemeInfo.fixPath(themeInfo.pathToFile);
+                    }
+                    File file = themeInfo.pathToFile != null ? new File(themeInfo.pathToFile) : null;
+                    SparseIntArray fileColors = (file != null && file.exists()) ? getThemeFileValues(file, null, wallpaperLink) : new SparseIntArray();
+                    checkIsDark(fileColors, themeInfo);
+                    boolean isDarkTheme = nightTheme || themeInfo.isDark() || themeInfo == currentNightTheme;
+                    SparseIntArray baseColors = getThemeFileValues(null, isDarkTheme ? "night.attheme" : "day.attheme", null);
+                    for (int a = 0; a < fileColors.size(); a++) {
+                        baseColors.put(fileColors.keyAt(a), fileColors.valueAt(a));
+                    }
+                    currentColorsNoAccent = baseColors;
                 }
                 themedWallpaperFileOffset = currentColorsNoAccent.get(key_wallpaperFileOffset, -1);
                 if (!TextUtils.isEmpty(wallpaperLink[0])) {
@@ -5870,8 +5907,19 @@ public class Theme {
                         next.run();
                     });
                 } else {
-                    getThemeFileValuesInBackground(new File(themeInfo.pathToFile), null, wallpaperLink, colors -> {
-                        currentColorsNoAccent = colors;
+                    if (themeInfo.pathToFile != null) {
+                        themeInfo.pathToFile = ThemeInfo.fixPath(themeInfo.pathToFile);
+                    }
+                    File file = themeInfo.pathToFile != null ? new File(themeInfo.pathToFile) : null;
+                    getThemeFileValuesInBackground((file != null && file.exists()) ? file : null, null, wallpaperLink, colors -> {
+                        SparseIntArray fileColors = colors != null ? colors : new SparseIntArray();
+                        checkIsDark(fileColors, themeInfo);
+                        boolean isDarkTheme = nightTheme || themeInfo.isDark() || themeInfo == currentNightTheme;
+                        SparseIntArray baseColors = getThemeFileValues(null, isDarkTheme ? "night.attheme" : "day.attheme", null);
+                        for (int a = 0; a < fileColors.size(); a++) {
+                            baseColors.put(fileColors.keyAt(a), fileColors.valueAt(a));
+                        }
+                        currentColorsNoAccent = baseColors;
                         next.run();
                     });
                 }
@@ -6424,7 +6472,22 @@ public class Theme {
     }
 
     public static boolean isCurrentThemeDark() {
-        return currentTheme.isDark();
+        if (currentTheme == null) {
+            return false;
+        }
+        if (currentTheme.isDark()) {
+            return true;
+        }
+        if (currentTheme == currentNightTheme) {
+            return true;
+        }
+        if (currentColors != null) {
+            int bg = currentColors.get(key_windowBackgroundWhite, 0);
+            if (bg != 0 && ColorUtils.calculateLuminance(bg) < 0.5f) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static ThemeInfo getActiveTheme() {
@@ -7531,17 +7594,37 @@ public class Theme {
     }
 
     private static void checkIsDark(SparseIntArray colors, Theme.ThemeInfo info) {
-        if (info == null || colors == null) {
+        if (info == null) {
             return;
         }
         if (info.isDark == ThemeInfo.UNKNOWN) {
-            int averageBackgroundColor = getPreviewColor(colors, key_windowBackgroundWhite);
-            averageBackgroundColor = ColorUtils.blendARGB(averageBackgroundColor, getPreviewColor(colors, key_windowBackgroundWhite), 0.5f);
-            if (ColorUtils.calculateLuminance(averageBackgroundColor) < 0.5f) {
-                info.isDark = ThemeInfo.DARK;
-            } else {
-                info.isDark = ThemeInfo.LIGHT;
+            if (colors != null) {
+                int bgKey = -1;
+                if (colors.indexOfKey(key_windowBackgroundWhite) >= 0) {
+                    bgKey = key_windowBackgroundWhite;
+                } else if (colors.indexOfKey(key_windowBackgroundGray) >= 0) {
+                    bgKey = key_windowBackgroundGray;
+                } else if (colors.indexOfKey(key_actionBarDefault) >= 0) {
+                    bgKey = key_actionBarDefault;
+                }
+                if (bgKey != -1) {
+                    int bgColor = colors.get(bgKey);
+                    if (ColorUtils.calculateLuminance(bgColor) < 0.5f) {
+                        info.isDark = ThemeInfo.DARK;
+                    } else {
+                        info.isDark = ThemeInfo.LIGHT;
+                    }
+                    return;
+                }
             }
+            if (info.name != null) {
+                String lower = info.name.toLowerCase();
+                if (lower.contains("dark") || lower.contains("night") || lower.contains("black") || lower.contains("amoled") || lower.contains("noir") || lower.contains("чорн") || lower.contains("черн") || lower.contains("темн")) {
+                    info.isDark = ThemeInfo.DARK;
+                    return;
+                }
+            }
+            info.isDark = ThemeInfo.LIGHT;
         }
     }
 
@@ -7572,9 +7655,13 @@ public class Theme {
                     if (bytes[a] == '\n') {
                         int len = a - start + 1;
                         String line = new String(bytes, start, len - 1);
+                        if (line.endsWith("\r")) {
+                            line = line.substring(0, line.length() - 1);
+                        }
+                        line = line.trim();
                         if (line.startsWith("WLS=")) {
                             if (wallpaperLink != null && wallpaperLink.length > 0) {
-                                wallpaperLink[0] = line.substring(4);
+                                wallpaperLink[0] = line.substring(4).trim();
                             }
                         } else if (line.startsWith("WPS")) {
                             wallpaperFileOffset = currentPosition + len;
@@ -7582,8 +7669,8 @@ public class Theme {
                             break;
                         } else {
                             if ((idx = line.indexOf('=')) != -1) {
-                                String key = line.substring(0, idx);
-                                String param = line.substring(idx + 1);
+                                String key = line.substring(0, idx).trim();
+                                String param = line.substring(idx + 1).trim();
                                 int value;
                                 if (param.length() > 0 && param.charAt(0) == '#') {
                                     try {
@@ -8910,7 +8997,36 @@ public class Theme {
         return drawable;
     }
 
+    private static SparseIntArray defaultDarkColors;
+
+    public static int getDarkDefaultColor(int key) {
+        if (defaultDarkColors == null) {
+            if (ApplicationLoader.applicationContext == null) {
+                return 0;
+            }
+            defaultDarkColors = getThemeFileValues(null, "night.attheme", null);
+        }
+        int index = defaultDarkColors.indexOfKey(key);
+        if (index >= 0) {
+            return defaultDarkColors.valueAt(index);
+        }
+        int fallbackKey = fallbackKeys.get(key, -1);
+        if (fallbackKey != -1) {
+            int fallbackIndex = defaultDarkColors.indexOfKey(fallbackKey);
+            if (fallbackIndex >= 0) {
+                return defaultDarkColors.valueAt(fallbackIndex);
+            }
+        }
+        return 0;
+    }
+
     public static int getDefaultColor(int key) {
+        if (isCurrentThemeDark()) {
+            int darkColor = getDarkDefaultColor(key);
+            if (darkColor != 0) {
+                return darkColor;
+            }
+        }
         int value = defaultColors[key];
         if (value == 0) {
             int fallbackKey = fallbackKeys.get(key, -1);

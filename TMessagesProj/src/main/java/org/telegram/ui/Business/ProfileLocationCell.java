@@ -79,6 +79,27 @@ public class ProfileLocationCell extends LinearLayout {
         setWillNotDraw(false);
     }
 
+    public TextView getTextView1() {
+        return textView1;
+    }
+
+    public TextView getTextView2() {
+        return textView2;
+    }
+
+    public void updateColors() {
+        final int color = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider);
+        textView1.setTextColor(color);
+        textView2.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider));
+        thumbDrawable.setColors(
+            Theme.multAlpha(color, .05f),
+            Theme.multAlpha(color, .15f),
+            Theme.multAlpha(color, .1f),
+            Theme.multAlpha(color, .3f)
+        );
+        invalidate();
+    }
+
     @Override
     protected boolean verifyDrawable(@NonNull Drawable who) {
         return who == thumbDrawable || super.verifyDrawable(who);

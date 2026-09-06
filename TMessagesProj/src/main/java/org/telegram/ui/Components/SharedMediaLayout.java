@@ -2854,7 +2854,7 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
             mediaPages[a].itemAnimator.setDurations(280);
             mediaPages[a].itemAnimator.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
             mediaPages[a].itemAnimator.setSupportsChangeAnimations(false);
-            mediaPages[a].listView = new SharedMediaListView(context) {
+            mediaPages[a].listView = new SharedMediaListView(context, resourcesProvider) {
 
                 @Override
                 public RecyclerListView.FastScrollAdapter getMovingAdapter() {
@@ -3103,7 +3103,7 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
             mediaPages[a].listView.setSectionsType(RecyclerListView.SECTIONS_TYPE_DATE);
             mediaPages[a].listView.setLayoutManager(layoutManager);
             mediaPages[a].addView(mediaPages[a].listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-            mediaPages[a].animationSupportingListView = new InternalListView(context);
+            mediaPages[a].animationSupportingListView = new InternalListView(context, resourcesProvider);
             mediaPages[a].animationSupportingListView.setLayoutManager(mediaPages[a].animationSupportingLayoutManager = new GridLayoutManager(context, 3) {
 
                 @Override
@@ -3602,7 +3602,7 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
             mediaPages[a].animatingImageView.setVisibility(View.GONE);
             mediaPages[a].listView.addOverlayView(mediaPages[a].animatingImageView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
-            mediaPages[a].progressView = new FlickerLoadingView(context) {
+            mediaPages[a].progressView = new FlickerLoadingView(context, resourcesProvider) {
 
                 @Override
                 public int getColumnsCount() {
@@ -3652,7 +3652,7 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
                 mediaPages[a].setVisibility(View.GONE);
             }
 
-            mediaPages[a].emptyView = new StickerEmptyView(context, mediaPages[a].progressView, StickerEmptyView.STICKER_TYPE_SEARCH) {
+            mediaPages[a].emptyView = new StickerEmptyView(context, mediaPages[a].progressView, StickerEmptyView.STICKER_TYPE_SEARCH, resourcesProvider) {
                 @Override
                 protected void onVisibilityChange(float factor) {
                     super.onVisibilityChange(factor);
@@ -10438,7 +10438,7 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
             View view;
             switch (viewType) {
                 case VIEW_TYPE_GROUP:
-                    view = new ProfileSearchCell(mContext, resourcesProvider);
+                    view = new ProfileSearchCell(mContext, resourcesProvider).useCustomPaints();
                     break;
                 case VIEW_TYPE_GROUP_EMPTY:
                     View emptyStubView = createEmptyStubView(mContext, 6, dialog_id, resourcesProvider);
@@ -11314,6 +11314,7 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
         ArrayList<ThemeDescription> arrayList = new ArrayList<>();
 
         arrayList.add(new ThemeDescription(selectedMessagesCountTextView, ThemeDescription.FLAG_TEXTCOLOR, null, null, null, null, Theme.key_windowBackgroundWhiteGrayText2));
+        arrayList.add(new ThemeDescription(optionsSearchImageView, ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_actionBarActionModeDefaultIcon));
 
         arrayList.add(new ThemeDescription(deleteItem.getIconView(), ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_actionBarActionModeDefaultIcon));
         arrayList.add(new ThemeDescription(deleteItem, ThemeDescription.FLAG_BACKGROUNDFILTER, null, null, null, null, Theme.key_actionBarActionModeDefaultSelector));
@@ -11782,7 +11783,11 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
         public int hintPaddingBottom;
 
         public InternalListView(Context context) {
-            super(context);
+            this(context, null);
+        }
+
+        public InternalListView(Context context, Theme.ResourcesProvider resourcesProvider) {
+            super(context, resourcesProvider);
         }
 
         @Override
@@ -11821,6 +11826,15 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
             } else {
                 optionsSearchImageView.getAnimatedDrawable().setCurrentFrame(optionsSearchImageView.getAnimatedDrawable().getCustomEndFrame());
             }
+        }
+    }
+
+    public void updateColors() {
+        if (optionsSearchImageView != null) {
+            optionsSearchImageView.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_actionBarActionModeDefaultIcon), PorterDuff.Mode.SRC_IN));
+        }
+        if (giftsContainer != null) {
+            giftsContainer.updateColors();
         }
     }
 
@@ -11934,7 +11948,11 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
     public static class SharedMediaListView extends InternalListView {
 
         public SharedMediaListView(Context context) {
-            super(context);
+            this(context, null);
+        }
+
+        public SharedMediaListView(Context context, Theme.ResourcesProvider resourcesProvider) {
+            super(context, resourcesProvider);
         }
 
         final HashSet<SharedPhotoVideoCell2> excludeDrawViews = new HashSet<>();

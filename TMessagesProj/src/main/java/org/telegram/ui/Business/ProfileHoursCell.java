@@ -169,8 +169,32 @@ public class ProfileHoursCell extends LinearLayout {
     }
 
     public void updateColors() {
-        switchText.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(8), Theme.multAlpha(processColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText2, resourcesProvider)), .10f), Theme.multAlpha(processColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText2, resourcesProvider)), .22f)));
-        switchText.setTextColor(processColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText2, resourcesProvider)));
+        if (switchText != null) {
+            switchText.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(8), Theme.multAlpha(processColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText2, resourcesProvider)), .10f), Theme.multAlpha(processColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText2, resourcesProvider)), .22f)));
+            switchText.setTextColor(processColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText2, resourcesProvider)));
+        }
+        int grayColor = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider);
+        int blackColor = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider);
+        for (int i = 0; i < 7; ++i) {
+            if (labelText[i] != null) {
+                labelText[i].setTextColor(i == 0 ? grayColor : blackColor);
+            }
+            if (timeText[i] != null) {
+                for (int a = 0; a < timeText[i].length; ++a) {
+                    if (timeText[i][a] != null) {
+                        timeText[i][a].setTextColor(grayColor);
+                    }
+                }
+            }
+        }
+        for (int a = 0; a < 2; ++a) {
+            if (labelTimeText[a] != null) {
+                labelTimeText[a].setTextColor(grayColor);
+            }
+        }
+        if (arrowView != null) {
+            arrowView.setColorFilter(new PorterDuffColorFilter(grayColor, PorterDuff.Mode.SRC_IN));
+        }
     }
 
     public void setOnTimezoneSwitchClick(View.OnClickListener onClickListener) {

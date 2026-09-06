@@ -12025,6 +12025,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (nameTextView[1] != null) {
             nameTextView[1].setTextColor(ColorUtils.blendARGB(ColorUtils.blendARGB(peerColor != null ? Color.WHITE : getThemedColor(Theme.key_profile_title), getThemedColor(Theme.key_player_actionBarTitle), mediaHeaderAnimationProgress), Color.WHITE, currentExpandAnimatorValue));
         }
+        if (mediaCounterTextView != null) {
+            if (mediaCounterTextView.getTextView() != null) {
+                mediaCounterTextView.getTextView().setTextColor(getThemedColor(Theme.key_player_actionBarSubtitle));
+            }
+            if (mediaCounterTextView.getNextTextView() != null) {
+                mediaCounterTextView.getNextTextView().setTextColor(getThemedColor(Theme.key_player_actionBarSubtitle));
+            }
+        }
         if (autoDeletePopupWrapper != null && autoDeletePopupWrapper.textView != null) {
             autoDeletePopupWrapper.textView.invalidate();
         }
@@ -12049,18 +12057,30 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 ((ProfileHoursCell) view).updateColors();
             } else if (view instanceof ProfileChannelCell) {
                 ((ProfileChannelCell) view).updateColors();
+            } else if (view instanceof ProfileLocationCell) {
+                if (peerColor != null) {
+                    ((ProfileLocationCell) view).getTextView1().setTextColor(0xFFFFFFFF);
+                    ((ProfileLocationCell) view).getTextView2().setTextColor(0xD9FFFFFF);
+                } else {
+                    ((ProfileLocationCell) view).updateColors();
+                }
+            } else if (view instanceof SharedMediaLayout) {
+                ((SharedMediaLayout) view).updateColors();
             }
             final int viewType = listAdapter.getItemViewType(listView.getChildAdapterPosition(view));
             listAdapter.setBackground(view, viewType);
         });
-        if (sharedMediaLayout != null && sharedMediaLayout.scrollSlidingTextTabStrip != null) {
-            sharedMediaLayout.scrollSlidingTextTabStrip.updateColors();
-        }
-        if (sharedMediaLayout != null && sharedMediaLayout.giftsContainer != null) {
-            sharedMediaLayout.giftsContainer.updateColors();
-        }
-        if (sharedMediaLayout != null && sharedMediaLayout.storiesContainer != null) {
-            sharedMediaLayout.storiesContainer.updateColors();
+        if (sharedMediaLayout != null) {
+            sharedMediaLayout.updateColors();
+            if (sharedMediaLayout.scrollSlidingTextTabStrip != null) {
+                sharedMediaLayout.scrollSlidingTextTabStrip.updateColors();
+            }
+            if (sharedMediaLayout.giftsContainer != null) {
+                sharedMediaLayout.giftsContainer.updateColors();
+            }
+            if (sharedMediaLayout.storiesContainer != null) {
+                sharedMediaLayout.storiesContainer.updateColors();
+            }
         }
         if (listAdapter != null) {
             listAdapter.notifyDataSetChanged();
@@ -12098,6 +12118,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (color == 0xFFFFFFFF || color == 0xD9FFFFFF || color == 0x1AFFFFFF || color == 0x26FFFFFF || color == 0x33000000) {
                 return color;
             }
+            int redColor = Theme.getColor(Theme.key_text_RedRegular, resourcesProvider);
+            int redBoldColor = Theme.getColor(Theme.key_text_RedBold, resourcesProvider);
+            int redColor2 = Theme.getColor(Theme.key_color_red, resourcesProvider);
+            if (color == redColor || color == redBoldColor || color == redColor2 || color == 0xffe53935 || color == 0xffeb5757 || color == 0xffcf3a34) {
+                return color;
+            }
             int blackText = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider);
             int blueText = Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, resourcesProvider);
             int blueText2 = Theme.getColor(Theme.key_windowBackgroundWhiteBlueText2, resourcesProvider);
@@ -12105,12 +12131,20 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             int tabSelectedText = Theme.getColor(Theme.key_profile_tabSelectedText, resourcesProvider);
             int chatsName = Theme.getColor(Theme.key_chats_name, resourcesProvider);
             int chatsNameMessage = Theme.getColor(Theme.key_chats_nameMessage, resourcesProvider);
-            if (color == blackText || color == blueText || color == blueText2 || color == valueText || color == tabSelectedText || color == chatsName || color == chatsNameMessage) {
+            int actionModeIcon = Theme.getColor(Theme.key_actionBarActionModeDefaultIcon, resourcesProvider);
+            if (color == blackText || color == blueText || color == blueText2 || color == valueText || color == tabSelectedText || color == chatsName || color == chatsNameMessage || color == actionModeIcon) {
                 return 0xFFFFFFFF;
             }
             int grayText = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, resourcesProvider);
             int grayText2 = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider);
             int grayText3 = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText3, resourcesProvider);
+            int grayText4 = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText4, resourcesProvider);
+            int grayText5 = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText5, resourcesProvider);
+            int grayText6 = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText6, resourcesProvider);
+            int grayText7 = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText7, resourcesProvider);
+            int grayText8 = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText8, resourcesProvider);
+            int playerSubtitle = Theme.getColor(Theme.key_player_actionBarSubtitle, resourcesProvider);
+            int defaultSubtitle = Theme.getColor(Theme.key_actionBarDefaultSubtitle, resourcesProvider);
             int blueHeader = Theme.getColor(Theme.key_windowBackgroundWhiteBlueHeader, resourcesProvider);
             int grayIcon = Theme.getColor(Theme.key_windowBackgroundWhiteGrayIcon, resourcesProvider);
             int actionIcon = Theme.getColor(Theme.key_actionBarDefaultIcon, resourcesProvider);
@@ -12119,7 +12153,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             int chatsDate = Theme.getColor(Theme.key_chats_date, resourcesProvider);
             int chatsAttach = Theme.getColor(Theme.key_chats_attachMessage, resourcesProvider);
             int chatsAction = Theme.getColor(Theme.key_chats_actionMessage, resourcesProvider);
-            if (color == grayText || color == grayText2 || color == grayText3 || color == blueHeader || color == grayIcon || color == actionIcon || color == tabText || color == chatsMessage || color == chatsDate || color == chatsAttach || color == chatsAction) {
+            if (color == grayText || color == grayText2 || color == grayText3 || color == grayText4 || color == grayText5 || color == grayText6 || color == grayText7 || color == grayText8 || color == playerSubtitle || color == defaultSubtitle || color == blueHeader || color == grayIcon || color == actionIcon || color == tabText || color == chatsMessage || color == chatsDate || color == chatsAttach || color == chatsAction) {
                 return 0xD9FFFFFF;
             }
             if (color == Theme.getColor(Theme.key_divider, resourcesProvider)) {
@@ -12438,7 +12472,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
 
         if (userId != 0 && !isBot && !myProfile) {
-            otherItem.addSubItem(report, R.drawable.msg_report, LocaleController.getString(R.string.ReportBot)).setColors(getThemedColor(Theme.key_text_RedRegular), getThemedColor(Theme.key_text_RedRegular));
+            otherItem.addSubItem(report, R.drawable.msg_report, LocaleController.getString(R.string.ReportChat)).setColors(getThemedColor(Theme.key_text_RedRegular), getThemedColor(Theme.key_text_RedRegular));
+        } else if (chatId != 0 && currentChat != null && !currentChat.creator && !ChatObject.hasAdminRights(currentChat)) {
+            otherItem.addSubItem(report, R.drawable.msg_report, LocaleController.getString(R.string.ReportChat)).setColors(getThemedColor(Theme.key_text_RedRegular), getThemedColor(Theme.key_text_RedRegular));
         }
 
         if (selfUser && !myProfile) {
@@ -12591,14 +12627,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             customResourcesProvider = new Theme.ResourcesProvider() {
                 @Override
                 public int getColor(int key) {
-                    if (key == Theme.key_dialogTextBlack || key == Theme.key_dialogTextGray || key == Theme.key_dialogTextGray2 || key == Theme.key_dialogTextGray3 || key == Theme.key_dialogTextGray4 || key == Theme.key_dialogTextLink || key == Theme.key_dialogTextBlue || key == Theme.key_dialogTextBlue2 || key == Theme.key_dialogBackground || key == Theme.key_dialogBackgroundGray || key == Theme.key_dialogButton || key == Theme.key_dialogButtonSelector) {
+                    if (key == Theme.key_dialogTextBlack || key == Theme.key_dialogTextGray || key == Theme.key_dialogTextGray2 || key == Theme.key_dialogTextGray3 || key == Theme.key_dialogTextGray4 || key == Theme.key_dialogTextLink || key == Theme.key_dialogTextBlue || key == Theme.key_dialogTextBlue2 || key == Theme.key_dialogBackground || key == Theme.key_dialogBackgroundGray || key == Theme.key_dialogButton || key == Theme.key_dialogButtonSelector || key == Theme.key_text_RedRegular || key == Theme.key_text_RedBold || key == Theme.key_color_red) {
                         return Theme.getColor(key);
                     }
                     if (peerColor != null) {
-                        if (key == Theme.key_windowBackgroundWhiteBlackText || key == Theme.key_windowBackgroundWhiteBlueText || key == Theme.key_windowBackgroundWhiteBlueText2 || key == Theme.key_windowBackgroundWhiteValueText || key == Theme.key_profile_tabSelectedText || key == Theme.key_chats_name || key == Theme.key_chats_nameMessage || key == Theme.key_chat_messageLinkIn || key == Theme.key_windowBackgroundWhiteLinkText) {
+                        if (key == Theme.key_windowBackgroundWhiteBlackText || key == Theme.key_windowBackgroundWhiteBlueText || key == Theme.key_windowBackgroundWhiteBlueText2 || key == Theme.key_windowBackgroundWhiteValueText || key == Theme.key_profile_tabSelectedText || key == Theme.key_chats_name || key == Theme.key_chats_nameMessage || key == Theme.key_chat_messageLinkIn || key == Theme.key_windowBackgroundWhiteLinkText || key == Theme.key_actionBarActionModeDefaultIcon) {
                             return 0xFFFFFFFF;
                         }
-                        if (key == Theme.key_windowBackgroundWhiteGrayText || key == Theme.key_windowBackgroundWhiteGrayText2 || key == Theme.key_windowBackgroundWhiteGrayText3 || key == Theme.key_windowBackgroundWhiteBlueHeader || key == Theme.key_windowBackgroundWhiteGrayIcon || key == Theme.key_actionBarDefaultIcon || key == Theme.key_profile_tabText || key == Theme.key_chats_message || key == Theme.key_chats_date || key == Theme.key_chats_attachMessage || key == Theme.key_chats_actionMessage || key == Theme.key_chats_sentReadCheck || key == Theme.key_chats_sentCheck) {
+                        if (key == Theme.key_windowBackgroundWhiteGrayText || key == Theme.key_windowBackgroundWhiteGrayText2 || key == Theme.key_windowBackgroundWhiteGrayText3 || key == Theme.key_windowBackgroundWhiteGrayText4 || key == Theme.key_windowBackgroundWhiteGrayText5 || key == Theme.key_windowBackgroundWhiteGrayText6 || key == Theme.key_windowBackgroundWhiteGrayText7 || key == Theme.key_windowBackgroundWhiteGrayText8 || key == Theme.key_player_actionBarSubtitle || key == Theme.key_actionBarDefaultSubtitle || key == Theme.key_windowBackgroundWhiteBlueHeader || key == Theme.key_windowBackgroundWhiteGrayIcon || key == Theme.key_actionBarDefaultIcon || key == Theme.key_profile_tabText || key == Theme.key_chats_message || key == Theme.key_chats_date || key == Theme.key_chats_attachMessage || key == Theme.key_chats_actionMessage || key == Theme.key_chats_sentReadCheck || key == Theme.key_chats_sentCheck) {
                             return 0xD9FFFFFF;
                         }
                         if (key == Theme.key_glass_targetMainTopPanel) {
@@ -13457,15 +13493,15 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     break;
                 }
                 case VIEW_TYPE_ADDTOGROUP_INFO: {
-                    view = new TextInfoPrivacyCell(mContext, resourcesProvider);
+                    view = new TextInfoPrivacyCell(mContext, getResourceProvider());
                     break;
                 }
                 case VIEW_TYPE_LOCATION:
-                    view = new ProfileLocationCell(mContext, resourcesProvider);
+                    view = new ProfileLocationCell(mContext, getResourceProvider());
                     view.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
                     break;
                 case VIEW_TYPE_HOURS:
-                    view = new ProfileHoursCell(mContext, resourcesProvider) {
+                    view = new ProfileHoursCell(mContext, getResourceProvider()) {
                         @Override
                         protected int processColor(int color) {
                             return dontApplyPeerColor(color, false);
@@ -13475,7 +13511,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     break;
                 case VIEW_TYPE_VERSION:
                 default: {
-                    TextInfoPrivacyCell cell = new TextInfoPrivacyCell(mContext, 10, resourcesProvider);
+                    TextInfoPrivacyCell cell = new TextInfoPrivacyCell(mContext, 10, getResourceProvider());
                     cell.getTextView().setGravity(Gravity.CENTER_HORIZONTAL);
                     cell.getTextView().setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteGrayText3));
                     cell.getTextView().setMovementMethod(null);
@@ -13634,6 +13670,15 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     if (userCell.statusTextView != null) {
                         userCell.statusTextView.setTextColor(0xD9FFFFFF);
                     }
+                } else if (holder.itemView instanceof TextInfoPrivacyCell) {
+                    TextInfoPrivacyCell cell = (TextInfoPrivacyCell) holder.itemView;
+                    cell.setTextColor(0xD9FFFFFF);
+                    cell.getTextView().setEmojiColor(0xD9FFFFFF);
+                    cell.getTextView().setLinkTextColor(0xFFFFFFFF);
+                } else if (holder.itemView instanceof ProfileLocationCell) {
+                    ProfileLocationCell cell = (ProfileLocationCell) holder.itemView;
+                    cell.getTextView1().setTextColor(0xFFFFFFFF);
+                    cell.getTextView2().setTextColor(0xD9FFFFFF);
                 }
             } else {
                 if (holder.itemView instanceof TextDetailCell) {
@@ -13664,6 +13709,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     if (userCell.statusTextView != null) {
                         userCell.statusTextView.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteGrayText));
                     }
+                } else if (holder.itemView instanceof ProfileLocationCell) {
+                    ((ProfileLocationCell) holder.itemView).updateColors();
                 }
             }
             switch (holder.getItemViewType()) {

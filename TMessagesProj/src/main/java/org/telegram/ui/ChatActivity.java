@@ -2401,6 +2401,7 @@ public class ChatActivity extends BaseFragment implements
         public void didRemoveQuickMediaPhoto(MediaController.PhotoEntry entry) {
             quickMediaSelected.remove(entry);
             chatActivityEnterView.setQuickMediaPreview(quickMediaSelected);
+            saveQuickMediaSelection();
         }
 
         @Override
@@ -8993,6 +8994,7 @@ public class ChatActivity extends BaseFragment implements
 
         onBottomItemsVisibilityChanged();
         ViewCompat.setOnApplyWindowInsetsListener(fragmentView, this::onApplyWindowInsets);
+        restoreQuickMediaSelection();
         Timer.finish(t);
 
         return fragmentView;
@@ -12609,6 +12611,11 @@ public class ChatActivity extends BaseFragment implements
                     }
                     onEditTextDialogClose(false, false);
                 }
+
+                @Override
+                protected boolean onMediaSelectionCollapsed() {
+                    return collapseAttachMediaSelection();
+                }
             };
             chatAttachAlert.setDialogId(getDialogId());
             chatAttachAlert.allowLivePhotos = true;
@@ -13604,8 +13611,11 @@ public class ChatActivity extends BaseFragment implements
                 @Override
                 public void selectionChanged(ArrayList<MediaController.PhotoEntry> selected) {
                     quickMediaSelected.clear();
-                    quickMediaSelected.addAll(selected);
+                    for (MediaController.PhotoEntry entry : selected) {
+                        quickMediaSelected.add(entry.clone());
+                    }
                     chatActivityEnterView.setQuickMediaPreview(quickMediaSelected);
+                    saveQuickMediaSelection();
                 }
             });
         }
@@ -13619,10 +13629,50 @@ public class ChatActivity extends BaseFragment implements
         HashMap<Object, Object> selectedPhotos = new HashMap<>();
         ArrayList<Object> selectedOrder = new ArrayList<>();
         for (MediaController.PhotoEntry entry : selected) {
-            selectedPhotos.put(entry.imageId, entry);
+            selectedPhotos.put(entry.imageId, entry.clone());
             selectedOrder.add(entry.imageId);
         }
         chatAttachAlert.getPhotoLayout().updateSelected(selectedPhotos, selectedOrder, true);
+    }
+
+    private boolean collapseAttachMediaSelection() {
+        if (chatMode != MODE_DEFAULT || chatAttachAlert == null || chatActivityEnterView == null) {
+            return false;
+        }
+        HashMap<Object, Object> selected = chatAttachAlert.getPhotoLayout().getSelectedPhotos();
+        ArrayList<Object> order = chatAttachAlert.getPhotoLayout().getSelectedPhotosOrder();
+        ArrayList<MediaController.PhotoEntry> photos = new ArrayList<>();
+        for (Object id : order) {
+            Object item = selected.get(id);
+            if (item instanceof MediaController.PhotoEntry) {
+                photos.add(((MediaController.PhotoEntry) item).clone());
+            }
+        }
+        if (photos.isEmpty() && quickMediaSelected.isEmpty()) {
+            return false;
+        }
+        quickMediaSelected.clear();
+        quickMediaSelected.addAll(photos);
+        chatActivityEnterView.setFieldText(chatAttachAlert.getCommentView().getText());
+        chatActivityEnterView.setQuickMediaPreview(quickMediaSelected);
+        saveQuickMediaSelection();
+        saveDraft();
+        return true;
+    }
+
+    private void saveQuickMediaSelection() {
+        ChatMediaDraftStore.save(getMessagesController().getMainSettings(), dialog_id, getTopicId(), quickMediaSelected);
+    }
+
+    private void restoreQuickMediaSelection() {
+        if (chatMode != MODE_DEFAULT) {
+            return;
+        }
+        quickMediaSelected.clear();
+        quickMediaSelected.addAll(ChatMediaDraftStore.load(getMessagesController().getMainSettings(), dialog_id, getTopicId()));
+        if (!quickMediaSelected.isEmpty() && chatActivityEnterView != null) {
+            chatActivityEnterView.setQuickMediaPreview(quickMediaSelected);
+        }
     }
 
     private void sendQuickMedia(ArrayList<MediaController.PhotoEntry> selected) {
@@ -13644,6 +13694,7 @@ public class ChatActivity extends BaseFragment implements
 
     private void clearQuickMediaSelection() {
         quickMediaSelected.clear();
+        saveQuickMediaSelection();
         if (chatActivityEnterView != null) {
             chatActivityEnterView.setQuickMediaPreview(quickMediaSelected);
         }
@@ -13677,10 +13728,10 @@ public class ChatActivity extends BaseFragment implements
         chatAttachAlert.init();
         chatAttachAlert.getCommentView().setText(chatActivityEnterView.getFieldText());
         chatAttachAlert.parentThemeDelegate = themeDelegate;
-        showDialog(chatAttachAlert);
         if (!quickMediaSelected.isEmpty()) {
             selectQuickMediaInAttachAlert(quickMediaSelected);
         }
+        showDialog(chatAttachAlert);
     }
 
     public void openAttachMenuForCreatingSticker() {

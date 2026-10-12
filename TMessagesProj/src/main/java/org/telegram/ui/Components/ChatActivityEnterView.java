@@ -6352,7 +6352,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             addMediaButton.setBackground(Theme.createRoundRectDrawable(dp(8),
                     Theme.multAlpha(getThemedColor(Theme.key_glass_defaultIcon), 0.08f)));
             addMediaButton.setContentDescription(getString(R.string.AccDescrAttachButton));
-            addMediaButton.setOnClickListener(v -> delegate.didLongPressAttachButton());
+            addMediaButton.setOnClickListener(v -> delegate.didPressAttachButton());
             addMediaButton.setOnLongClickListener(v -> {
                 delegate.didLongPressAttachButton();
                 return true;

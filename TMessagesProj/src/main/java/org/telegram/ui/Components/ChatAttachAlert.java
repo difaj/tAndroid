@@ -4472,6 +4472,11 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         }
     }
 
+    public void sendQuickSelectedPhotos() {
+        setButtonPressed(false);
+        sendPressed(true, 0, 0, 0, isCaptionAbove());
+    }
+
     public void setButtonPressed(boolean pressed) {
         buttonPressed = pressed;
     }
@@ -6857,6 +6862,11 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
     private boolean confirmationAlertShown = false;
     protected boolean allowPassConfirmationAlert = false;
 
+    /** Return true when the selected gallery media was moved into the chat composer. */
+    protected boolean onMediaSelectionCollapsed() {
+        return false;
+    }
+
     public void dismiss(boolean passConfirmationAlert) {
         if (passConfirmationAlert) {
             this.allowPassConfirmationAlert = passConfirmationAlert;
@@ -6879,6 +6889,11 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         BaseFragment baseFragment = this.baseFragment;
         if (baseFragment == null) {
             baseFragment = LaunchActivity.getLastFragment();
+        }
+        if (!allowPassConfirmationAlert && !buttonPressed && photoLayout != null
+                && (currentAttachLayout == photoLayout || currentAttachLayout == photoPreviewLayout)
+                && onMediaSelectionCollapsed()) {
+            allowPassConfirmationAlert = true;
         }
         if (!allowPassConfirmationAlert && baseFragment != null && currentAttachLayout.getSelectedItemsCount() > 0 && !isPhotoPicker) {
             if (confirmationAlertShown) {

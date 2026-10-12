@@ -132,6 +132,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
     public void hideSubtitle() {
         if (getSubtitleTextView() != null) {
             getSubtitleTextView().setVisibility(View.GONE);
+            checkActionBar(true);
         }
     }
 
@@ -764,6 +765,18 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         glassMode = true;
     }
 
+    private boolean centeredHeader;
+
+    public void setCenteredHeaderStyle() {
+        centeredHeader = true;
+        titleTextView.setScrollNonFitText(true);
+        titleTextView.setScrollDelayMs(1200);
+        titleTextView.setRightPadding(dp(10));
+        if (subtitleTextView != null) {
+            subtitleTextView.setEllipsizeByGradient(false);
+        }
+    }
+
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         final int actionBarHeight = ActionBar.getCurrentActionBarHeight();
@@ -940,7 +953,10 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         if (value != null) {
             value = Emoji.replaceEmoji(value, titleTextView.getPaint().getFontMetricsInt(), false);
         }
-        titleTextView.setText(value);
+        boolean titleChanged = titleTextView.setText(value);
+        if (centeredHeader && titleChanged) {
+            titleTextView.resetScrolling();
+        }
         rightDrawableIsScam = false;
         if (scam || fake) {
             rightDrawableIsScam = true;
@@ -1103,6 +1119,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         if ((UserObject.isUserSelf(user) && !showSavedMessagesHint || UserObject.isReplyUser(user) || user != null && user.id == UserObject.VERIFY || parentFragment.getChatMode() != 0 && parentFragment.getChatMode() != ChatActivity.MODE_SUGGESTIONS) && parentFragment.getChatMode() != ChatActivity.MODE_SAVED) {
             if (getSubtitleTextView().getVisibility() != GONE) {
                 getSubtitleTextView().setVisibility(GONE);
+                checkActionBar(animated);
             }
             return;
         } else if (showSavedMessagesHint) {
@@ -1718,11 +1735,11 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
     public int getVisualWidth() {
         float width = 0;
 
-        if (titleTextView != null) {
-            width = Math.max(width, titleTextView.getExactWidthIncludeDrawables());
+        if (titleTextView != null && titleTextView.getVisibility() == VISIBLE) {
+            width = Math.max(width, centeredHeader ? titleTextView.getExactWidth() + dp(12) : titleTextView.getExactWidthIncludeDrawables());
         }
-        if (subtitleTextView != null) {
-            width = Math.max(width, subtitleTextView.getExactWidthIncludeDrawables());
+        if (subtitleTextView != null && subtitleTextView.getVisibility() == VISIBLE) {
+            width = Math.max(width, centeredHeader ? subtitleTextView.getExactWidth() + subtitleTextView.getPaddingRight() + dp(4) : subtitleTextView.getExactWidthIncludeDrawables());
         }
         if (hasVisibleAvatar()) {
             width += dp(52 + 18);

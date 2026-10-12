@@ -113,6 +113,7 @@ public class SimpleTextView extends View implements Drawable.Callback {
     private static final int PIXELS_PER_SECOND_SLOW = 30;
     private static final int DIST_BETWEEN_SCROLLING_TEXT = 16;
     private static final int SCROLL_DELAY_MS = 500;
+    private int scrollDelayMs = SCROLL_DELAY_MS;
     private static final int SCROLL_SLOWDOWN_PX = 100;
     private int fullLayoutAdditionalWidth;
     private int fullLayoutLeftOffset;
@@ -232,6 +233,11 @@ public class SimpleTextView extends View implements Drawable.Callback {
         checkUi_layerType();
     }
 
+    public void setScrollDelayMs(int delayMs) {
+        scrollDelayMs = Math.max(0, delayMs);
+        currentScrollDelay = scrollDelayMs;
+    }
+
     public void setEllipsizeByGradient(boolean value) {
         setEllipsizeByGradient(value, null);
     }
@@ -241,13 +247,14 @@ public class SimpleTextView extends View implements Drawable.Callback {
     }
 
     public void setEllipsizeByGradient(boolean value, Boolean forceLeft) {
-        if (scrollNonFitText == value) {
+        if (ellipsizeByGradient == value && java.util.Objects.equals(forceEllipsizeByGradientLeft, forceLeft)) {
             return;
         }
         ellipsizeByGradient = value;
         this.forceEllipsizeByGradientLeft = forceLeft;
         updateFadePaints();
         checkUi_layerType();
+        requestLayout();
     }
 
     public void setEllipsizeByGradient(int value, Boolean forceLeft) {
@@ -510,7 +517,7 @@ public class SimpleTextView extends View implements Drawable.Callback {
         if (lastWidth != AndroidUtilities.displaySize.x) {
             lastWidth = AndroidUtilities.displaySize.x;
             scrollingOffset = 0;
-            currentScrollDelay = SCROLL_DELAY_MS;
+            currentScrollDelay = scrollDelayMs;
             checkUi_layerType();
         }
         createLayout(width - getPaddingLeft() - getPaddingRight() - minusWidth - (leftDrawableOutside && leftDrawable != null ? leftDrawable.getIntrinsicWidth() + drawablePadding : 0) - (rightDrawableOutside && rightDrawable != null ? rightDrawable.getIntrinsicWidth() + drawablePadding : 0) - (rightDrawableOutside && rightDrawable2 != null ? rightDrawable2.getIntrinsicWidth() + drawablePadding : 0));
@@ -703,7 +710,7 @@ public class SimpleTextView extends View implements Drawable.Callback {
             return false;
         }
         text = value;
-        currentScrollDelay = SCROLL_DELAY_MS;
+        currentScrollDelay = scrollDelayMs;
         recreateLayoutMaybe();
         return true;
     }
@@ -1253,7 +1260,7 @@ public class SimpleTextView extends View implements Drawable.Callback {
             lastUpdateTime = newUpdateTime;
             if (scrollingOffset > totalDistance) {
                 scrollingOffset = 0;
-                currentScrollDelay = SCROLL_DELAY_MS;
+                currentScrollDelay = scrollDelayMs;
             }
             checkUi_layerType();
         }

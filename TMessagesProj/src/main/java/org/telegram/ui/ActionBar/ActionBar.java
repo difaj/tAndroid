@@ -198,6 +198,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     private boolean glassModeIsForum;
 
     private ChatAvatarContainer chatAvatarContainer;
+    private boolean centerChatAvatarContainer;
 
     public void setGlassOnlyBack() {
         glassOnlyBack = true;
@@ -205,6 +206,31 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
     public void setChatAvatarContainer(ChatAvatarContainer chatAvatarContainer) {
         this.chatAvatarContainer = chatAvatarContainer;
+    }
+
+    public void setCenterChatAvatarContainer(boolean center) {
+        centerChatAvatarContainer = center;
+        requestLayout();
+        invalidate();
+    }
+
+    private int getCenteredAvatarLeftBound() {
+        final int glassGap = dp(6);
+        final int glassPadding = dp(12);
+        return backButtonImageView != null && backButtonImageView.getVisibility() == View.VISIBLE ? dp(46) + glassPadding + glassGap : glassGap;
+    }
+
+    private int getCenteredAvatarRightBound(int width) {
+        final int glassGap = dp(6);
+        final int glassPadding = dp(12);
+        final int animatedMenuWidth = hasForcedMenuWidth ? forcedMenuWidth : (int) animatorMenuItemsWidth.getFactor();
+        final int menuWidth = hasForcedMenuMinWidth ? Math.max((int) (forcedMenuMinWidth * (1f - searchFactor)), animatedMenuWidth) : animatedMenuWidth;
+        final int rightClearance = menuWidth > 0 ? Math.max(dp(46), menuWidth) + glassPadding + glassGap : glassGap;
+        return width - rightClearance;
+    }
+
+    private int getCenteredAvatarMaxWidth(int width) {
+        return Math.max(0, getCenteredAvatarRightBound(width) - getCenteredAvatarLeftBound());
     }
 
     public void setupGlass(BlurredBackgroundDrawableViewFactory factory, BlurredBackgroundColorProvider colorProvider) {
@@ -1499,6 +1525,10 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             if (child.getVisibility() == GONE || child == titleTextView[0] || child == titleTextView[1] || child == additionalSubTitleOverlayContainer || child == subtitleTextView || child == menu || child == backButtonImageView || child == additionalSubtitleTextView || child == avatarSearchImageView) {
                 continue;
             }
+            if (centerChatAvatarContainer && child == chatAvatarContainer) {
+                child.measure(MeasureSpec.makeMeasureSpec(Math.max(0, getCenteredAvatarMaxWidth(width) - dp(12)), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(getMeasuredHeight(), MeasureSpec.EXACTLY));
+                continue;
+            }
             measureChildWithMargins(child, widthMeasureSpec, 0, MeasureSpec.makeMeasureSpec(getMeasuredHeight(), MeasureSpec.EXACTLY), 0);
         }
     }
@@ -1512,7 +1542,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         int additionalTop = occupyStatusBar ? AndroidUtilities.statusBarHeight : 0;
-        if (prevWidth != getMeasuredWidth()) {
+        if (prevWidth != getMeasuredWidth() || centerChatAvatarContainer) {
             prevWidth = getMeasuredWidth();
             checkAvatarContainerWidth(animatorAvatarContainerWidth.isAnimating());
         }
@@ -2155,7 +2185,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             //visualWidth = Math.max(visualWidth, dp(168));
         }
 
-        final int width = Math.min(getMeasuredWidth() - dp(6 + 46 + 6 + 6 + 46 + 6), visualWidth);
+        final int maxWidth = centerChatAvatarContainer ? getCenteredAvatarMaxWidth(getMeasuredWidth()) - dp(12) : getMeasuredWidth() - dp(6 + 46 + 6 + 6 + 46 + 6);
+        final int width = Math.max(0, Math.min(maxWidth, visualWidth));
         if (animated) {
             if (animatorAvatarContainerWidth.getToFactor() != width) {
                 animatorAvatarContainerWidth.animateTo(width);
@@ -2175,6 +2206,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     @Override
     public void onFactorChanged(int id, float factor, float fraction, FactorAnimator callee) {
         invalidate();
+        if (centerChatAvatarContainer && callee == animatorMenuItemsWidth) {
+            requestLayout();
+        }
     }
 
     private int forcedMenuWidth;
@@ -2213,6 +2247,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             } else {
                 animatorMenuItemsWidth.forceFactor(width);
             }
+            if (centerChatAvatarContainer) {
+                requestLayout();
+            }
         }
     }
 
@@ -2241,8 +2278,11 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             final int widthDefault = rightDefault - leftDefault;
             final int left, right;
             if (chatAvatarContainer != null) {
-                final int width = lerp(Math.min(widthDefault, (int) animatorAvatarContainerWidth.getFactor() + p * 2), widthDefault, Math.max(searchFactor, actionModeFactor));
-                left = (rightDefault + leftDefault - width) / 2;
+                final int maxWidth = centerChatAvatarContainer ? Math.min(widthDefault, getCenteredAvatarMaxWidth(getWidth())) : widthDefault;
+                final int width = lerp(Math.min(maxWidth, (int) animatorAvatarContainerWidth.getFactor() + p * 2), widthDefault, Math.max(searchFactor, actionModeFactor));
+                left = centerChatAvatarContainer && searchFactor == 0f && actionModeFactor == 0f
+                    ? Math.max(getCenteredAvatarLeftBound(), Math.min((getWidth() - width) / 2, getCenteredAvatarRightBound(getWidth()) - width))
+                    : (rightDefault + leftDefault - width) / 2;
                 right = left + width;
 
                 final float translationX = left

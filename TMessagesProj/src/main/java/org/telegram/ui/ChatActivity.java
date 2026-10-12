@@ -4187,6 +4187,9 @@ public class ChatActivity extends BaseFragment implements
             }
         };
         avatarContainer.setGlassMode();
+        if (chatMode == MODE_DEFAULT && !isComments && !isReport()) {
+            avatarContainer.setCenteredHeaderStyle();
+        }
         avatarContainer.allowShorterStatus = true;
         avatarContainer.premiumIconHiddable = true;
         avatarContainer.allowDrawStories = dialog_id < 0 && !isTopic;
@@ -4608,6 +4611,10 @@ public class ChatActivity extends BaseFragment implements
         } else if (isComments) {
             actionBar.setChatAvatarContainer(avatarContainer);
             actionBar.setForcedMenuMinWidth(dp(46));
+            avatarContainer.setActionBar(actionBar);
+        } else if (chatMode == MODE_DEFAULT && !isReport()) {
+            actionBar.setChatAvatarContainer(avatarContainer);
+            actionBar.setCenterChatAvatarContainer(true);
             avatarContainer.setActionBar(actionBar);
         }
 

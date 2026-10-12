@@ -91,6 +91,7 @@ import android.view.inputmethod.InputConnection;
 import android.webkit.MimeTypeMap;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -319,6 +320,12 @@ public class ChatActivityEnterView extends FrameLayout implements
         void onMessageEditEnd(boolean loading);
 
         void didPressAttachButton();
+
+        default void didLongPressAttachButton() {}
+
+        default boolean didPressQuickMediaSend() { return false; }
+
+        default void didRemoveQuickMediaPhoto(MediaController.PhotoEntry entry) {}
 
         default void didPressStreamingStop() {}
 
@@ -647,6 +654,7 @@ public class ChatActivityEnterView extends FrameLayout implements
     @Nullable
     private ImageView reactionsButton;
     public FrameLayout messageEditTextContainer;
+    private HorizontalScrollView quickMediaPreview;
     public FrameLayout textFieldContainer;
     public FrameLayout sendButtonContainer;
     private ImageView sendOutlineView;
@@ -2843,6 +2851,13 @@ public class ChatActivityEnterView extends FrameLayout implements
                     return;
                 }
                 delegate.didPressAttachButton();
+            });
+            attachButton.setOnLongClickListener(v -> {
+                if (adjustPanLayoutHelper != null && adjustPanLayoutHelper.animationInProgress() || attachLayoutPaddingAlpha == 0f) {
+                    return false;
+                }
+                delegate.didLongPressAttachButton();
+                return true;
             });
             attachButton.setContentDescription(getString(R.string.AccDescrAttachButton));
             updateFieldRight(1);
@@ -6289,6 +6304,70 @@ public class ChatActivityEnterView extends FrameLayout implements
         checkSendButton(animated);
     }
 
+    public void setQuickMediaPreview(ArrayList<MediaController.PhotoEntry> photos) {
+        if (quickMediaPreview != null) {
+            messageEditTextContainer.removeView(quickMediaPreview);
+            quickMediaPreview = null;
+        }
+        if (messageEditText != null) {
+            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) messageEditText.getLayoutParams();
+            params.topMargin = photos.isEmpty() ? 0 : dp(68);
+            messageEditText.setLayoutParams(params);
+        }
+        if (!photos.isEmpty()) {
+            quickMediaPreview = new HorizontalScrollView(getContext());
+            quickMediaPreview.setHorizontalScrollBarEnabled(false);
+            LinearLayout row = new LinearLayout(getContext());
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            quickMediaPreview.addView(row);
+            for (MediaController.PhotoEntry entry : photos) {
+                FrameLayout tile = new FrameLayout(getContext());
+                BackupImageView image = new BackupImageView(getContext());
+                image.setRoundRadius(dp(8));
+                String path = entry.thumbPath != null ? entry.thumbPath : (entry.isVideo ? "vthumb://" : "thumb://") + entry.imageId + ":" + entry.path;
+                image.setImage(path, "64_64", Theme.chat_attachEmptyDrawable);
+                tile.addView(image, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+                if (entry.isVideo) {
+                    ImageView videoIcon = new ImageView(getContext());
+                    videoIcon.setImageResource(R.drawable.play_mini_video);
+                    tile.addView(videoIcon, LayoutHelper.createFrame(20, 20, Gravity.BOTTOM | Gravity.LEFT, 4, 0, 0, 4));
+                }
+                TextView remove = new TextView(getContext());
+                remove.setText("×");
+                remove.setTextSize(15);
+                remove.setTextColor(0xffffffff);
+                remove.setGravity(Gravity.CENTER);
+                remove.setBackground(Theme.createRoundRectDrawable(dp(10), 0xaa000000));
+                remove.setContentDescription(getString(R.string.Delete));
+                tile.addView(remove, LayoutHelper.createFrame(20, 20, Gravity.TOP | Gravity.RIGHT));
+                remove.setOnClickListener(v -> delegate.didRemoveQuickMediaPhoto(entry));
+                LinearLayout.LayoutParams tileParams = new LinearLayout.LayoutParams(dp(58), dp(58));
+                tileParams.rightMargin = dp(5);
+                row.addView(tile, tileParams);
+            }
+            ImageView addMediaButton = new ImageView(getContext());
+            addMediaButton.setScaleType(ImageView.ScaleType.CENTER);
+            addMediaButton.setImageResource(R.drawable.msg_add);
+            addMediaButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_glass_defaultIcon), PorterDuff.Mode.SRC_IN));
+            addMediaButton.setBackground(Theme.createRoundRectDrawable(dp(8),
+                    Theme.multAlpha(getThemedColor(Theme.key_glass_defaultIcon), 0.08f)));
+            addMediaButton.setContentDescription(getString(R.string.AccDescrAttachButton));
+            addMediaButton.setOnClickListener(v -> delegate.didLongPressAttachButton());
+            addMediaButton.setOnLongClickListener(v -> {
+                delegate.didLongPressAttachButton();
+                return true;
+            });
+            LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(dp(58), dp(58));
+            row.addView(addMediaButton, addParams);
+            messageEditTextContainer.addView(quickMediaPreview, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 64, Gravity.TOP, 12, 4, 12, 0));
+            HorizontalScrollView preview = quickMediaPreview;
+            preview.post(() -> preview.fullScroll(View.FOCUS_RIGHT));
+        }
+        updateFieldHint(true);
+        checkSendButton(true);
+        messageEditTextContainer.requestLayout();
+    }
+
     public void setAllowStickersAndGifs(boolean needAnimatedEmoji, boolean needStickers, boolean needGifs) {
         setAllowStickersAndGifs(needAnimatedEmoji, needStickers, needGifs, false);
     }
@@ -6816,6 +6895,10 @@ public class ChatActivityEnterView extends FrameLayout implements
             }
         }
         updateSendButtonPaid();
+        if (quickMediaPreview != null) {
+            messageEditText.setHintText(getString(R.string.AddCaption), animated);
+            return;
+        }
         final boolean isPostSuggestions = parentFragment != null && parentFragment.getChatMode() == ChatActivity.MODE_SUGGESTIONS && parentFragment.isSubscriberSuggestions;
         long paidMessagesStarsPrice = (parentFragment != null ? parentFragment.getMessagesController().getSendPaidMessagesStars(parentFragment.getDialogId()) : 0);
         if (paidMessagesStarsPrice > 0) {
@@ -7248,6 +7331,9 @@ public class ChatActivityEnterView extends FrameLayout implements
     }
 
     public boolean sendMessage() {
+        if (quickMediaPreview != null && delegate != null && delegate.didPressQuickMediaSend()) {
+            return true;
+        }
         if (richDraftActive && !UserConfig.getInstance(currentAccount).isPremium()) {
             RichEditor.openConversionSheet(getContext(), this::openRichEditorWithoutFormatting, () -> {
                 if (parentFragment != null) {
@@ -8114,7 +8200,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                     }
                 }
             }
-        } else if (message.length() > 0 || forceShowSendButton || richDraftActive || audioToSend != null || videoToSendMessageObject != null || slowModeTimer == Integer.MAX_VALUE && !isSlowModeIgnored() || isLiveComment && getStarsPrice() > 0 || animatorIsBlockedByStreaming.getValue()) {
+        } else if (message.length() > 0 || forceShowSendButton || quickMediaPreview != null || richDraftActive || audioToSend != null || videoToSendMessageObject != null || slowModeTimer == Integer.MAX_VALUE && !isSlowModeIgnored() || isLiveComment && getStarsPrice() > 0 || animatorIsBlockedByStreaming.getValue()) {
             shownSendButton = true;
             final String caption = messageEditText == null ? null : messageEditText.getCaption();
             boolean showBotButton = caption != null && (getSendButtonInternal().getVisibility() == VISIBLE || expandStickersButton != null && expandStickersButton.getVisibility() == VISIBLE);

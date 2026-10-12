@@ -4472,6 +4472,11 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         }
     }
 
+    public void sendQuickSelectedPhotos() {
+        setButtonPressed(false);
+        sendPressed(true, 0, 0, 0, isCaptionAbove());
+    }
+
     public void setButtonPressed(boolean pressed) {
         buttonPressed = pressed;
     }

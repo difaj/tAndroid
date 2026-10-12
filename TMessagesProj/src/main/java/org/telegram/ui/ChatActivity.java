@@ -530,6 +530,8 @@ public class ChatActivity extends BaseFragment implements
     private MentionsContainerView mentionContainer;
     private AnimatorSet mentionListAnimation;
     public ChatAttachAlert chatAttachAlert;
+    private ChatQuickMediaPicker quickMediaPicker;
+    private final ArrayList<MediaController.PhotoEntry> quickMediaSelected = new ArrayList<>();
     @Nullable
     private FrameLayout topChatPanelView;
     @Nullable
@@ -2382,6 +2384,26 @@ public class ChatActivity extends BaseFragment implements
         }
 
         @Override
+        public void didLongPressAttachButton() {
+            openQuickMediaPicker();
+        }
+
+        @Override
+        public boolean didPressQuickMediaSend() {
+            if (quickMediaSelected.isEmpty()) {
+                return false;
+            }
+            sendQuickMedia(new ArrayList<>(quickMediaSelected));
+            return true;
+        }
+
+        @Override
+        public void didRemoveQuickMediaPhoto(MediaController.PhotoEntry entry) {
+            quickMediaSelected.remove(entry);
+            chatActivityEnterView.setQuickMediaPreview(quickMediaSelected);
+        }
+
+        @Override
         public void didPressSuggestionButton() {
             new MessageSuggestionOfferSheet(getContext(), currentAccount, dialog_id, messageSuggestionParams != null ? messageSuggestionParams: MessageSuggestionParams.empty(), ChatActivity.this, getResourceProvider(), MessageSuggestionOfferSheet.MODE_INPUT, ChatActivity.this::showFieldPanelForSuggestionParams).show();
         }
@@ -3353,6 +3375,10 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
+        if (quickMediaPicker != null) {
+            quickMediaPicker.dismiss();
+            quickMediaPicker = null;
+        }
         if (messageMetricsView != null) {
             messageMetricsView.finish();
         }
@@ -12598,7 +12624,7 @@ public class ChatActivity extends BaseFragment implements
                         editingMessageObject.messageOwner.invert_media = invertMedia;
                     }
                     if (button == 8 || button == 7 || button == 4 && !chatAttachAlert.getPhotoLayout().getSelectedPhotos().isEmpty()) {
-                        if (chatAttachAlert != null && button != 8) {
+                        if (chatAttachAlert != null && chatAttachAlert.isShowing() && button != 8) {
                             chatAttachAlert.dismiss(true);
                         }
                         final HashMap<Object, Object> selectedPhotos = chatAttachAlert.getPhotoLayout().getSelectedPhotos();
@@ -12666,6 +12692,9 @@ public class ChatActivity extends BaseFragment implements
                             }
                             afterMessageSend();
                             chatActivityEnterView.setFieldText("");
+                            if (!quickMediaSelected.isEmpty()) {
+                                clearQuickMediaSelection();
+                            }
                         }
                         if (scheduleDate != 0) {
                             if (scheduledMessagesCount == -1) {
@@ -13549,9 +13578,84 @@ public class ChatActivity extends BaseFragment implements
         return true;
     }
 
+    private void openQuickMediaPicker() {
+        if (getParentActivity() == null || chatActivityEnterView == null || !TextUtils.isEmpty(chatActivityEnterView.getSlowModeTimer())) {
+            return;
+        }
+        if (chatMode != MODE_DEFAULT || isInScheduleMode() || chatActivityEnterView.isEphemeralMessageVisible()
+                || messageSuggestionParams != null || currentChat != null && currentChat.slowmode_enabled
+                || currentChat != null && (!ChatObject.canSendPhoto(currentChat) || !ChatObject.canSendVideo(currentChat))) {
+            openAttachMenu();
+            return;
+        }
+        View attachButton = chatActivityEnterView.getAttachButton();
+        if (attachButton == null || attachButton.getWindowToken() == null || chatActivityEnterView.getWidth() == 0) {
+            openAttachMenu();
+            return;
+        }
+        if (quickMediaPicker == null) {
+            quickMediaPicker = new ChatQuickMediaPicker(getParentActivity(), getResourceProvider(),
+                    glassBackgroundDrawableFactory, blurredBackgroundColorProvider, new ChatQuickMediaPicker.Delegate() {
+                @Override
+                public void openCamera() {
+                    processSelectedAttach(attach_photo);
+                }
+
+                @Override
+                public void selectionChanged(ArrayList<MediaController.PhotoEntry> selected) {
+                    quickMediaSelected.clear();
+                    quickMediaSelected.addAll(selected);
+                    chatActivityEnterView.setQuickMediaPreview(quickMediaSelected);
+                }
+            });
+        }
+        int[] inputLocation = new int[2];
+        chatInputViewsContainer.getLocationOnScreen(inputLocation);
+        int inputTop = inputLocation[1] + Math.round(chatInputViewsContainer.getInputBubbleTop()) - AndroidUtilities.dp(7);
+        quickMediaPicker.show(chatActivityEnterView, inputTop, quickMediaSelected);
+    }
+
+    private void selectQuickMediaInAttachAlert(ArrayList<MediaController.PhotoEntry> selected) {
+        HashMap<Object, Object> selectedPhotos = new HashMap<>();
+        ArrayList<Object> selectedOrder = new ArrayList<>();
+        for (MediaController.PhotoEntry entry : selected) {
+            selectedPhotos.put(entry.imageId, entry);
+            selectedOrder.add(entry.imageId);
+        }
+        chatAttachAlert.getPhotoLayout().updateSelected(selectedPhotos, selectedOrder, true);
+    }
+
+    private void sendQuickMedia(ArrayList<MediaController.PhotoEntry> selected) {
+        if (selected.isEmpty() || getParentActivity() == null || chatActivityEnterView == null) {
+            return;
+        }
+        createChatAttachView();
+        if (chatAttachAlert == null) {
+            return;
+        }
+        chatAttachAlert.restrictEphemeralMessageTypes = false;
+        chatAttachAlert.setMaxSelectedPhotos(-1, true);
+        chatAttachAlert.enableDefaultMode();
+        chatAttachAlert.init();
+        selectQuickMediaInAttachAlert(selected);
+        chatAttachAlert.getCommentView().setText(chatActivityEnterView.getFieldText());
+        chatAttachAlert.sendQuickSelectedPhotos();
+    }
+
+    private void clearQuickMediaSelection() {
+        quickMediaSelected.clear();
+        if (chatActivityEnterView != null) {
+            chatActivityEnterView.setQuickMediaPreview(quickMediaSelected);
+        }
+    }
+
     private void openAttachMenu() {
         if (getParentActivity() == null || chatActivityEnterView != null && !TextUtils.isEmpty(chatActivityEnterView.getSlowModeTimer())) {
             return;
+        }
+
+        if (quickMediaPicker != null && quickMediaPicker.isShowing()) {
+            quickMediaPicker.dismiss();
         }
 
         final boolean isEphemeralMessage = chatActivityEnterView != null && chatActivityEnterView.isEphemeralMessageVisible();
@@ -13574,6 +13678,9 @@ public class ChatActivity extends BaseFragment implements
         chatAttachAlert.getCommentView().setText(chatActivityEnterView.getFieldText());
         chatAttachAlert.parentThemeDelegate = themeDelegate;
         showDialog(chatAttachAlert);
+        if (!quickMediaSelected.isEmpty()) {
+            selectQuickMediaInAttachAlert(quickMediaSelected);
+        }
     }
 
     public void openAttachMenuForCreatingSticker() {
@@ -29981,6 +30088,9 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onPause() {
         super.onPause();
+        if (quickMediaPicker != null) {
+            quickMediaPicker.dismiss();
+        }
         scrolling = false;
         if (scrimPopupWindow != null) {
             scrimPopupWindow.setPauseNotifications(false);
@@ -34607,6 +34717,12 @@ public class ChatActivity extends BaseFragment implements
 
     @Override
     public boolean onBackPressed(boolean invoked) {
+        if (quickMediaPicker != null && quickMediaPicker.isShowing()) {
+            if (invoked) {
+                quickMediaPicker.dismiss();
+            }
+            return false;
+        }
         final Bulletin bulletin = Bulletin.getVisibleBulletin();
         if (bulletin != null && bulletin.getLayout() instanceof Bulletin.LottieLayoutWithReactions) {
             if (invoked) {

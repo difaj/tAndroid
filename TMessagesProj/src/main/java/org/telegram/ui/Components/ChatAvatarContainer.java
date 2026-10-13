@@ -713,6 +713,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         titleTextLargerCopyView.setRightDrawable(titleTextView.getRightDrawable());
         titleTextLargerCopyView.setRightDrawable2(titleTextView.getRightDrawable2());
         titleTextLargerCopyView.setRightDrawableOutside(titleTextView.getRightDrawableOutside());
+        titleTextLargerCopyView.setPinRightDrawableToEdge(centeredHeader);
         titleTextLargerCopyView.setLeftDrawable(titleTextView.getLeftDrawable());
         titleTextLargerCopyView.setText(titleTextView.getText());
         titleTextLargerCopyView.animate().alpha(0).setDuration(350).setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT).withEndAction(() -> {
@@ -771,9 +772,12 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         centeredHeader = true;
         titleTextView.setScrollNonFitText(true);
         titleTextView.setScrollDelayMs(1200);
+        titleTextView.setRightDrawableOutside(false);
+        titleTextView.setPinRightDrawableToEdge(true);
         titleTextView.setRightPadding(dp(10));
         if (subtitleTextView != null) {
-            subtitleTextView.setEllipsizeByGradient(false);
+            subtitleTextView.setScrollNonFitText(true);
+            subtitleTextView.setScrollDelayMs(1200);
         }
     }
 
@@ -1736,15 +1740,17 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         float width = 0;
 
         if (titleTextView != null && titleTextView.getVisibility() == VISIBLE) {
-            width = Math.max(width, centeredHeader ? titleTextView.getExactWidth() + dp(12) : titleTextView.getExactWidthIncludeDrawables());
+            width = Math.max(width, centeredHeader ? titleTextView.getExactWidth()
+                    + dp(8)
+                    : titleTextView.getExactWidthIncludeDrawables());
         }
         if (subtitleTextView != null && subtitleTextView.getVisibility() == VISIBLE) {
-            width = Math.max(width, centeredHeader ? subtitleTextView.getExactWidth() + subtitleTextView.getPaddingRight() + dp(4) : subtitleTextView.getExactWidthIncludeDrawables());
+            width = Math.max(width, centeredHeader ? subtitleTextView.getExactWidth() + subtitleTextView.getPaddingRight() + dp(2) : subtitleTextView.getExactWidthIncludeDrawables());
         }
         if (hasVisibleAvatar()) {
-            width += dp(52 + 18);
+            width += dp(centeredHeader ? 52 : 52 + 18);
         } else {
-            width += dp(34);
+            width += dp(centeredHeader ? 14 : 34);
         }
         return (int) width;
     }

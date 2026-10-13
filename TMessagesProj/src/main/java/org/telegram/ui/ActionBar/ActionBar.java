@@ -233,6 +233,16 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         return Math.max(0, getCenteredAvatarRightBound(width) - getCenteredAvatarLeftBound());
     }
 
+    private boolean useExpandedChatAvatar(int width) {
+        return centerChatAvatarContainer && chatAvatarContainer != null && width > 0
+                && chatAvatarContainer.getVisualWidth() > getCenteredAvatarMaxWidth(width) - dp(12);
+    }
+
+    private int getChatAvatarMaxWidth(int width) {
+        // The left-aligned fallback reclaims the 12dp inset on each side of the centered pill.
+        return getCenteredAvatarMaxWidth(width) + (useExpandedChatAvatar(width) ? dp(24) : 0) - dp(12);
+    }
+
     public void setupGlass(BlurredBackgroundDrawableViewFactory factory, BlurredBackgroundColorProvider colorProvider) {
         setupGlass(factory, colorProvider, false);
     }
@@ -1526,7 +1536,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 continue;
             }
             if (centerChatAvatarContainer && child == chatAvatarContainer) {
-                child.measure(MeasureSpec.makeMeasureSpec(Math.max(0, getCenteredAvatarMaxWidth(width) - dp(12)), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(getMeasuredHeight(), MeasureSpec.EXACTLY));
+                child.measure(MeasureSpec.makeMeasureSpec(Math.max(0, getChatAvatarMaxWidth(width)), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(getMeasuredHeight(), MeasureSpec.EXACTLY));
                 continue;
             }
             measureChildWithMargins(child, widthMeasureSpec, 0, MeasureSpec.makeMeasureSpec(getMeasuredHeight(), MeasureSpec.EXACTLY), 0);
@@ -2185,7 +2195,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             //visualWidth = Math.max(visualWidth, dp(168));
         }
 
-        final int maxWidth = centerChatAvatarContainer ? getCenteredAvatarMaxWidth(getMeasuredWidth()) - dp(12) : getMeasuredWidth() - dp(6 + 46 + 6 + 6 + 46 + 6);
+        final int maxWidth = centerChatAvatarContainer ? getChatAvatarMaxWidth(getMeasuredWidth()) : getMeasuredWidth() - dp(6 + 46 + 6 + 6 + 46 + 6);
         final int width = Math.max(0, Math.min(maxWidth, visualWidth));
         if (animated) {
             if (animatorAvatarContainerWidth.getToFactor() != width) {
@@ -2286,9 +2296,10 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             final int widthDefault = rightDefault - leftDefault;
             final int left, right;
             if (chatAvatarContainer != null) {
-                final int maxWidth = centerChatAvatarContainer ? Math.min(widthDefault, getCenteredAvatarMaxWidth(getWidth())) : widthDefault;
+                final boolean expandedAvatar = useExpandedChatAvatar(getWidth());
+                final int maxWidth = centerChatAvatarContainer && !expandedAvatar ? Math.min(widthDefault, getCenteredAvatarMaxWidth(getWidth())) : widthDefault;
                 final int width = lerp(Math.min(maxWidth, (int) animatorAvatarContainerWidth.getFactor() + p * 2), widthDefault, Math.max(searchFactor, actionModeFactor));
-                left = centerChatAvatarContainer && searchFactor == 0f && actionModeFactor == 0f
+                left = centerChatAvatarContainer && !expandedAvatar && searchFactor == 0f && actionModeFactor == 0f
                     ? Math.max(getCenteredAvatarLeftBound(), Math.min((getWidth() - width) / 2, getCenteredAvatarRightBound(getWidth()) - width))
                     : (rightDefault + leftDefault - width) / 2;
                 right = left + width;

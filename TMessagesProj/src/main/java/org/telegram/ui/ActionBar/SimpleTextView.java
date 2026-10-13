@@ -102,6 +102,7 @@ public class SimpleTextView extends View implements Drawable.Callback {
 
     private boolean leftDrawableOutside, rightDrawableOutside;
     private boolean rightDrawableInside;
+    private boolean pinRightDrawableToEdge;
     private boolean ellipsizeByGradient, ellipsizeByGradientLeft;
     private Boolean forceEllipsizeByGradientLeft;
     private int ellipsizeByGradientWidthDp = 16;
@@ -907,6 +908,11 @@ public class SimpleTextView extends View implements Drawable.Callback {
             }
             int dw = (int) (rightDrawable.getIntrinsicWidth() * rightDrawableScale);
             int dh = (int) (rightDrawable.getIntrinsicHeight() * rightDrawableScale);
+            if (pinRightDrawableToEdge && textDoesNotFit) {
+                int secondWidth = rightDrawable2 == null ? 0 :
+                        (int) (rightDrawable2.getIntrinsicWidth() * rightDrawableScale) + drawablePadding;
+                x = getMeasuredWidth() - getPaddingRight() - paddingRight - dw - secondWidth;
+            }
             int y;
             if ((gravity & Gravity.VERTICAL_GRAVITY_MASK) == Gravity.CENTER_VERTICAL) {
                 y = (getMeasuredHeight() - dh) / 2 + rightDrawableTopPadding;
@@ -930,6 +936,9 @@ public class SimpleTextView extends View implements Drawable.Callback {
             }
             int dw = (int) (rightDrawable2.getIntrinsicWidth() * rightDrawableScale);
             int dh = (int) (rightDrawable2.getIntrinsicHeight() * rightDrawableScale);
+            if (pinRightDrawableToEdge && textDoesNotFit) {
+                x = getMeasuredWidth() - getPaddingRight() - paddingRight - dw;
+            }
             int y;
             if ((gravity & Gravity.VERTICAL_GRAVITY_MASK) == Gravity.CENTER_VERTICAL) {
                 y = (getMeasuredHeight() - dh) / 2 + rightDrawableTopPadding;
@@ -990,7 +999,12 @@ public class SimpleTextView extends View implements Drawable.Callback {
         if (layout != null) {
             if (leftDrawableOutside || rightDrawableOutside || ellipsizeByGradient || paddingRight > 0) {
                 canvas.save();
-                canvas.clipRect(textOffsetX, 0, getMaxTextWidth() - paddingRight - dp(rightDrawable != null && !(rightDrawable instanceof AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable) && rightDrawableOutside ? 2 : 0), getMeasuredHeight());
+                int textRight = getMaxTextWidth() - paddingRight - dp(rightDrawable != null && !(rightDrawable instanceof AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable) && rightDrawableOutside ? 2 : 0);
+                if (pinRightDrawableToEdge && textDoesNotFit) {
+                    if (rightDrawable != null) textRight -= (int) (rightDrawable.getIntrinsicWidth() * rightDrawableScale) + drawablePadding;
+                    if (rightDrawable2 != null) textRight -= (int) (rightDrawable2.getIntrinsicWidth() * rightDrawableScale) + drawablePadding;
+                }
+                canvas.clipRect(textOffsetX, 0, Math.max(textOffsetX, textRight), getMeasuredHeight());
             }
             Emoji.emojiDrawingUseAlpha = usaAlphaForEmoji;
             if (wrapBackgroundDrawable != null) {
@@ -1324,6 +1338,13 @@ public class SimpleTextView extends View implements Drawable.Callback {
     // right drawable is ellipsized with text
     public void setRightDrawableInside(boolean inside) {
         rightDrawableInside = inside;
+    }
+
+    public void setPinRightDrawableToEdge(boolean pin) {
+        if (pinRightDrawableToEdge != pin) {
+            pinRightDrawableToEdge = pin;
+            invalidate();
+        }
     }
 
 

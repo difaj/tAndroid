@@ -4239,7 +4239,7 @@ public class ChatActivity extends BaseFragment implements
         if (chatMode == MODE_DEFAULT && !isComments && !isReport()) {
             avatarContainer.setCenteredHeaderStyle();
         }
-        avatarContainer.allowShorterStatus = true;
+        avatarContainer.allowShorterStatus = chatMode != MODE_DEFAULT || isComments || isReport();
         avatarContainer.premiumIconHiddable = true;
         avatarContainer.allowDrawStories = dialog_id < 0 && !isTopic;
         avatarContainer.setClipChildren(false);

@@ -29,6 +29,9 @@ out vec4 fragmentColor;
 uniform vec2 uEngravingTexel;
 uniform vec3 uMainLightDirection;
 uniform vec2 uQrCenter;
+#if defined(WALLET_EDGE_PASS) || defined(WALLET_ENGRAVING_PASS)
+uniform vec4 uSkinColor;
+#endif
 
 in vec3 vObjectPosition;
 in vec3 vObjectNormal;
@@ -1059,6 +1062,33 @@ void main() {
 
     color = acesToneMap(color * EXPOSURE);
     color = pow(color, vec3(1.0 / 2.2));
+#ifdef WALLET_EDGE_PASS
+    // Only the side material follows the selected gift's card color.
+    float materialLight = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    vec3 skinMaterial = clamp(uSkinColor.rgb * clamp(0.45 + materialLight * 1.35, 0.4, 1.4), 0.0, 1.0);
+    color = mix(color, skinMaterial, uSkinColor.a);
+#endif
+#ifdef WALLET_ENGRAVING_PASS
+    if (uSkinColor.a > 0.5) {
+        // Keep a light metallic face on every gift color. Its darker recessed
+        // edge and bright bevel come from the engraving normal map and move
+        // with the card, instead of choosing flat black ink on light skins.
+        float diffuseRelief = dot(normal, lightDirection)
+                - dot(flatNormal, lightDirection);
+        float specularRelief = dot(normal, radialShineHalfway)
+                - dot(flatNormal, radialShineHalfway);
+        float bevel = clamp(diffuseRelief * 2.4 + specularRelief * 0.75, -1.0, 1.0);
+        vec3 engravedMaterial = mix(uSkinColor.rgb, vec3(1.0), 0.78);
+        engravedMaterial = mix(engravedMaterial, uSkinColor.rgb * 0.40,
+                clamp(-bevel, 0.0, 1.0) * 0.8);
+        engravedMaterial = mix(engravedMaterial, vec3(1.0),
+                clamp(bevel, 0.0, 1.0));
+        fragmentColor = vec4(engravedMaterial, clamp(engravingCenter * 0.82, 0.0, 1.0));
+    } else {
+        fragmentColor = vec4(color, 1.0);
+    }
+#else
     fragmentColor = vec4(color, 1.0);
+#endif
 #endif
 }

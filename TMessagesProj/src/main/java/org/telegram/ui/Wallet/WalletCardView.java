@@ -54,6 +54,7 @@ public class WalletCardView extends FrameLayout implements SensorEventListener {
     private boolean cardAttached;
     private boolean rendering;
     private final ProjectedFaceLayout frontFace;
+    private int skinColor;
     private final ProjectedFaceLayout backFace;
     private final WalletCardGLRenderer.FaceProjection faceProjection =
             new WalletCardGLRenderer.FaceProjection();
@@ -181,6 +182,7 @@ public class WalletCardView extends FrameLayout implements SensorEventListener {
 
     private void showLoadingCard() {
         showingLoadingCard = true;
+        loadingCard.setVisibility(skinColor == 0 ? VISIBLE : INVISIBLE);
         loadingFrontRevision = textureView.renderer.nextFrontRevision();
         // Keep TextureView drawing/latching, but cover its stale pose until a
         // fresh frame is available. Alpha zero would stop its draw callbacks.
@@ -253,6 +255,18 @@ public class WalletCardView extends FrameLayout implements SensorEventListener {
     public void setEngravingBitmap(Bitmap bitmap) {
         loadingCard.setEngravingBitmap(bitmap);
         textureView.renderer.setEngravingBitmap(bitmap);
+    }
+
+    void setSkinColor(int color) {
+        if (skinColor == color) return;
+        skinColor = color;
+        textureView.renderer.setSkinColor(color);
+        // A skin change only updates the material. Re-entering the loading
+        // state exposes the flat placeholder gem until the next GL frame.
+        if (showingLoadingCard) {
+            loadingCard.setVisibility(color == 0 ? VISIBLE : INVISIBLE);
+        }
+        invalidate();
     }
 
     public void setCardIcon(int drawableResId) {

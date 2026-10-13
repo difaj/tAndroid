@@ -37,12 +37,19 @@ import androidx.core.graphics.ColorUtils;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.Emoji;
+import org.telegram.messenger.DocumentObject;
+import org.telegram.messenger.FileLoader;
+import org.telegram.messenger.ImageLocation;
+import org.telegram.messenger.ImageReceiver;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
+import org.telegram.messenger.UserConfig;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.tgnet.tl.TL_stars;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.AnimatedFloat;
+import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.Components.ButtonBounce;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LoadingDrawable;
@@ -52,6 +59,7 @@ import org.telegram.ui.Components.Text;
 import org.telegram.ui.Components.TextStyleSpan;
 import org.telegram.ui.Components.spoilers.SpoilerEffect;
 import org.telegram.ui.Gifts.GiftSheet;
+import org.telegram.ui.Stars.StarsController;
 
 import java.util.ArrayList;
 import java.util.Locale;
@@ -60,6 +68,7 @@ import java.util.Stack;
 public class WalletActionLayout {
 
     private final View parentView;
+    private final int account;
     private final Theme.ResourcesProvider resourcesProvider;
     private final ArrayList<SpoilerEffect> commentSpoilers = new ArrayList<>();
     private final Stack<SpoilerEffect> commentSpoilersPool = new Stack<>();
@@ -71,6 +80,12 @@ public class WalletActionLayout {
     private final Path cardClip = new Path();
     private final WalletCardMotion cardMotion;
     private final RLottieDrawable gramDrawable;
+    private final ImageReceiver skinModel;
+    private final AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable skinPattern;
+    private final Paint skinBackgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private long skinGiftId;
+    private int skinBackgroundColor;
+    private boolean skinHasPattern;
     private WalletDiamondTextureView diamondSurface;
     private boolean surfaceEnabled, surfaceFailed;
     private float surfaceOriginX, surfaceOriginY;
@@ -132,21 +147,40 @@ public class WalletActionLayout {
     private Runnable onClick;
 
     public WalletActionLayout(View parentView) {
-        this(parentView, null);
+        this(parentView, null, UserConfig.selectedAccount);
     }
 
     public WalletActionLayout(View parentView, Theme.ResourcesProvider resourcesProvider) {
+        this(parentView, resourcesProvider, UserConfig.selectedAccount);
+    }
+
+    public WalletActionLayout(View parentView, Theme.ResourcesProvider resourcesProvider, int account) {
         this.parentView = parentView;
         this.resourcesProvider = resourcesProvider;
+        this.account = account;
         cardDrawable = parentView.getResources().getDrawable(R.drawable.wallet_action_card_gradient).mutate();
         cardMotion = WalletCardMotion.get(parentView.getContext());
         gramDrawable = new RLottieDrawable(R.raw.wallet_diamond_white, dp(42), dp(42), false, null);
         gramDrawable.setMasterParent(parentView);
         gramDrawable.setAutoRepeat(0);
+        skinModel = new ImageReceiver(parentView);
+        skinModel.setCurrentAccount(account);
+        skinModel.setAspectFit(true);
+        skinModel.setAllowStartAnimation(false);
+        skinPattern = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable(parentView, dp(16)) {
+            @Override
+            public void invalidate() {
+                super.invalidate();
+                parentView.invalidate();
+            }
+        };
+        skinPattern.setCurrentAccount(account);
         parentView.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
             @Override
             public void onViewAttachedToWindow(View v) {
-                if (diamondSurface != null) diamondSurface.setPaused(!surfaceEnabled);
+                if (diamondSurface != null) diamondSurface.setPaused(!surfaceEnabled || skinGiftId != 0);
+                skinModel.onAttachedToWindow();
+                skinPattern.attach();
             }
 
             @Override
@@ -160,8 +194,14 @@ public class WalletActionLayout {
                 if (diamondSurface != null) diamondSurface.setPaused(true);
                 gramDrawable.stop();
                 gramAnimationStarted = false;
+                skinModel.onDetachedFromWindow();
+                skinPattern.detach();
             }
         });
+        if (parentView.isAttachedToWindow()) {
+            skinModel.onAttachedToWindow();
+            skinPattern.attach();
+        }
 
         sendingClockPaint.setColor(0xFF66E6FF);
         sendingClockPaint.setStyle(Paint.Style.STROKE);
@@ -225,6 +265,7 @@ public class WalletActionLayout {
         }
         this.out = out;
         this.action = action;
+        setOutgoingSkin(out ? WalletActivity.getSelectedCardSkin(account) : null);
         this.waitingForReceive = !out && waitingForReceive;
         if (this.waitingForReceive) {
             forceRibbonReveal(0);
@@ -309,11 +350,12 @@ public class WalletActionLayout {
         final int numberStart = localizedAmount.getSpanStart(numberSpan);
         final int numberEnd = localizedAmount.getSpanEnd(numberSpan);
         localizedAmount.removeSpan(numberSpan);
+        final int accentColor = skinGiftId != 0 ? 0xCCFFFFFF : 0xFF5DE3FF;
         if (numberStart > 0) {
-            localizedAmount.setSpan(new ForegroundColorSpan(0xFF5DE3FF), 0, numberStart, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            localizedAmount.setSpan(new ForegroundColorSpan(accentColor), 0, numberStart, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
         if (numberEnd >= 0 && numberEnd < localizedAmount.length()) {
-            localizedAmount.setSpan(new ForegroundColorSpan(0xFF5DE3FF), numberEnd, localizedAmount.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            localizedAmount.setSpan(new ForegroundColorSpan(accentColor), numberEnd, localizedAmount.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
         amountText = new Text(localizedAmount, 16, AndroidUtilities.bold());
 
@@ -367,6 +409,47 @@ public class WalletActionLayout {
                 commentText.setText(Emoji.replaceEmoji(action.comment, commentText.paint.getFontMetricsInt(), false));
             }
         }
+    }
+
+    private void setOutgoingSkin(TL_stars.TL_starGiftUnique gift) {
+        final long id = gift == null ? 0 : gift.id;
+        if (skinGiftId == id) return;
+        skinGiftId = id;
+        skinHasPattern = false;
+        if (gift == null) {
+            skinModel.clearImage();
+            skinPattern.set((TLRPC.Document) null, false);
+            if (diamondSurface != null) setSurfaceEnabled(surfaceEnabled);
+            parentView.invalidate();
+            return;
+        }
+        final TL_stars.starGiftAttributeBackdrop backdrop = StarsController.findAttribute(
+                gift.attributes, TL_stars.starGiftAttributeBackdrop.class);
+        skinBackgroundColor = backdrop == null ? 0xFF334155 : backdrop.center_color | 0xFF000000;
+        final TL_stars.starGiftAttributePattern pattern = StarsController.findAttribute(
+                gift.attributes, TL_stars.starGiftAttributePattern.class);
+        if (pattern != null && pattern.document != null) {
+            skinPattern.set(pattern.document, false);
+            skinPattern.setColor(backdrop == null ? 0xFF000000 : backdrop.pattern_color | 0xFF000000);
+            skinPattern.setAlpha(89);
+            skinHasPattern = true;
+        } else {
+            skinPattern.set((TLRPC.Document) null, false);
+        }
+        final TLRPC.Document document = gift.getDocument();
+        if (document != null) {
+            final TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(document.thumbs, dp(100));
+            skinModel.setImage(ImageLocation.getForDocument(document), "100_100",
+                    ImageLocation.getForDocument(thumb, document), "100_100",
+                    DocumentObject.getSvgThumb(document, Theme.key_windowBackgroundGray, 0.3f), gift, 0);
+        } else {
+            skinModel.clearImage();
+        }
+        gramDrawable.stop();
+        gramAnimationStarted = false;
+        resetDiamond();
+        setSurfaceEnabled(surfaceEnabled);
+        parentView.invalidate();
     }
 
     public int getWidth() {
@@ -424,19 +507,37 @@ public class WalletActionLayout {
         cardClip.addRoundRect(cardRect, dp(16), dp(16), Path.Direction.CW);
         canvas.save();
         canvas.clipPath(cardClip);
-        canvas.translate(cardRect.centerX() + dp(10) * cardMotion.x, cardRect.centerY() + dp(8) * cardMotion.y);
-        updateSendingGradient();
-        canvas.rotate(cardMotion.x * 14f + cardMotion.y * 6f + sendingGradientRotation);
-        // Keep the rectangular asset's aspect ratio, with its shorter side covering
-        // the card's diagonal plus parallax at every angle of a full rotation.
-        final float gradientHalf = (float) Math.hypot(cardRect.width(), cardRect.height()) / 2f + dp(16);
-        final int gradientWidth = Math.max(1, cardDrawable.getIntrinsicWidth());
-        final int gradientHeight = Math.max(1, cardDrawable.getIntrinsicHeight());
-        final float gradientScale = gradientHalf / Math.min(gradientWidth, gradientHeight);
-        final int gradientHalfWidth = (int) Math.ceil(gradientWidth * gradientScale);
-        final int gradientHalfHeight = (int) Math.ceil(gradientHeight * gradientScale);
-        cardDrawable.setBounds(-gradientHalfWidth, -gradientHalfHeight, gradientHalfWidth, gradientHalfHeight);
-        cardDrawable.draw(canvas);
+        if (skinGiftId != 0) {
+            skinBackgroundPaint.setColor(skinBackgroundColor);
+            canvas.drawRect(cardRect, skinBackgroundPaint);
+            if (skinHasPattern) {
+                final float scaleXPattern = cardRect.width() / 336f;
+                final float scaleYPattern = cardRect.height() / 205f;
+                final float symbolSize = 26 * scaleXPattern;
+                for (int row = 0; row < 6; row++) {
+                    final float symbolY = cardRect.top + (16 + row * 34) * scaleYPattern;
+                    for (int column = 0; column < 5; column++) {
+                        final float symbolX = cardRect.left + (15 + column * 74 + (row % 2) * 37) * scaleXPattern;
+                        skinPattern.setBounds(Math.round(symbolX - symbolSize / 2), Math.round(symbolY - symbolSize / 2),
+                                Math.round(symbolX + symbolSize / 2), Math.round(symbolY + symbolSize / 2));
+                        skinPattern.draw(canvas);
+                    }
+                }
+            }
+        } else {
+            canvas.translate(cardRect.centerX() + dp(10) * cardMotion.x, cardRect.centerY() + dp(8) * cardMotion.y);
+            updateSendingGradient();
+            canvas.rotate(cardMotion.x * 14f + cardMotion.y * 6f + sendingGradientRotation);
+            // Keep the original animated gradient when there is no gift skin.
+            final float gradientHalf = (float) Math.hypot(cardRect.width(), cardRect.height()) / 2f + dp(16);
+            final int gradientWidth = Math.max(1, cardDrawable.getIntrinsicWidth());
+            final int gradientHeight = Math.max(1, cardDrawable.getIntrinsicHeight());
+            final float gradientScale = gradientHalf / Math.min(gradientWidth, gradientHeight);
+            final int gradientHalfWidth = (int) Math.ceil(gradientWidth * gradientScale);
+            final int gradientHalfHeight = (int) Math.ceil(gradientHeight * gradientScale);
+            cardDrawable.setBounds(-gradientHalfWidth, -gradientHalfHeight, gradientHalfWidth, gradientHalfHeight);
+            cardDrawable.draw(canvas);
+        }
         canvas.restore();
 
         final int iconSize = dp(42);
@@ -458,7 +559,7 @@ public class WalletActionLayout {
             canvas.restore();
             parentView.postInvalidateOnAnimation();
         }
-        updateDiamondPose();
+        if (skinGiftId == 0) updateDiamondPose();
         if (diamondSurface != null) {
             final float centerX = getWidth() / 2f + (diamondBounds.exactCenterX() - getWidth() / 2f) * scaleX;
             final float centerY = landingOffset + dp(70) + (diamondBounds.exactCenterY() - dp(70)) * scaleY;
@@ -467,8 +568,11 @@ public class WalletActionLayout {
             diamondSurface.setScaleX(scaleX * diamondScale);
             diamondSurface.setScaleY(scaleY * diamondScale);
         }
-        final boolean nativeDiamond = iconVisible && diamondSurface != null && diamondSurface.isReady();
-        if (nativeDiamond) {
+        final boolean nativeDiamond = skinGiftId == 0 && iconVisible && diamondSurface != null && diamondSurface.isReady();
+        if (skinGiftId != 0) {
+            skinModel.setImageCoords(iconLeft, iconTop, iconSize, iconSize);
+            skinModel.draw(canvas);
+        } else if (nativeDiamond) {
             gramDrawable.stop();
             gramAnimationStarted = false;
         } else if (!gramAnimationStarted && iconVisible) {
@@ -476,7 +580,7 @@ public class WalletActionLayout {
             gramDrawable.setProgress(0);
             gramDrawable.start();
         }
-        if (!nativeDiamond && !diamondHeldForFlight) {
+        if (skinGiftId == 0 && !nativeDiamond && !diamondHeldForFlight) {
             gramDrawable.draw(canvas);
         }
 
@@ -505,12 +609,14 @@ public class WalletActionLayout {
                     canvas,
                     (getWidth() - peerLinkText.getWidth()) / 2.0f,
                     addressTop - dp(4) - peerLinkText.getHeight() / 2.0f,
-                    0xFF5DE3FF,
+                    skinGiftId != 0 ? 0xFFFFFFFF : 0xFF5DE3FF,
                     1.0f
                 );
             }
-            addressText.draw(canvas, addressX, addressTop + dp(1), 0x0FFFFFFF, 1.0f);
-            addressText.draw(canvas, addressX, addressTop, 0xFF0145D0, 1.0f);
+            addressText.draw(canvas, addressX, addressTop + dp(1),
+                    skinGiftId != 0 ? 0x55000000 : 0x0FFFFFFF, 1.0f);
+            addressText.draw(canvas, addressX, addressTop,
+                    skinGiftId != 0 ? 0xCCFFFFFF : 0xFF0145D0, 1.0f);
         }
 
         if (loadingDrawable != null && !loadingDrawable.isDisappeared()) {
@@ -759,7 +865,8 @@ public class WalletActionLayout {
 
     public void setSurfaceEnabled(boolean enabled) {
         surfaceEnabled = enabled;
-        if (enabled && diamondSurface == null && !surfaceFailed && parentView instanceof ViewGroup
+        final boolean showDiamond = enabled && skinGiftId == 0;
+        if (showDiamond && diamondSurface == null && !surfaceFailed && parentView instanceof ViewGroup
                 && SharedConfig.getDevicePerformanceClass() != SharedConfig.PERFORMANCE_CLASS_LOW) {
             ActivityManager manager = (ActivityManager) parentView.getContext().getSystemService(android.content.Context.ACTIVITY_SERVICE);
             if (manager != null && manager.getDeviceConfigurationInfo().reqGlEsVersion >= 0x30000) {
@@ -776,8 +883,8 @@ public class WalletActionLayout {
             }
         }
         if (diamondSurface != null) {
-            diamondSurface.setVisibility(enabled && !surfaceFailed ? View.VISIBLE : View.GONE);
-            diamondSurface.setPaused(!enabled || surfaceFailed);
+            diamondSurface.setVisibility(showDiamond && !surfaceFailed ? View.VISIBLE : View.GONE);
+            diamondSurface.setPaused(!showDiamond || surfaceFailed);
         }
         if (!enabled) {
             finishReceiveAnimation();
@@ -948,7 +1055,7 @@ public class WalletActionLayout {
     }
 
     public boolean isDiamondTouch(float x, float y) {
-        return diamondSurface != null && diamondSurface.isReady() && diamondBounds.contains((int) x, (int) y);
+        return skinGiftId == 0 && diamondSurface != null && diamondSurface.isReady() && diamondBounds.contains((int) x, (int) y);
     }
 
     private boolean onDiamondTouch(float offsetX, float offsetY, MotionEvent event) {

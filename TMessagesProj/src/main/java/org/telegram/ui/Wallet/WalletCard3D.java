@@ -50,6 +50,7 @@ final class WalletCard3D {
     private static final int ENGRAVING_WIDTH = 2048, ENGRAVING_HEIGHT = 1024;
     private final MaterialProgram qrProgram;
     private final MaterialProgram edgeProgram;
+    private int skinColor;
     private final Mesh frontMesh;
     private final Mesh edgeMesh;
     private int cardDetailTexture;
@@ -115,20 +116,9 @@ final class WalletCard3D {
 
         drawMesh(frontMesh, bodyProgram);
 
-        if (hasEngraving) {
-            engravingProgram.bind(mvpMatrix, modelViewMatrix, lightDirectionX, lightDirectionY,
-                    lightDirectionZ, cardGradientRotation, qrButtonRightPadding);
-            WalletCardQrBounds.compute(mvpMatrix, surfaceWidth, surfaceHeight,
-                    engravingUvBounds[0], engravingUvBounds[1], engravingUvBounds[2], engravingUvBounds[3],
-                    ENGRAVING_WIDTH, ENGRAVING_HEIGHT, true, engravingScissor, uvFootprint);
-            GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
-            GLES20.glScissor(engravingScissor[0], engravingScissor[1], engravingScissor[2], engravingScissor[3]);
-            GLES20.glDepthFunc(GLES20.GL_EQUAL);
-            GLES20.glDepthMask(false);
-            drawMesh(frontMesh, engravingProgram);
-            GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
-            GLES20.glDepthMask(true);
-            GLES20.glDepthFunc(GLES20.GL_LEQUAL);
+        if (hasEngraving && skinColor == 0) {
+            drawEngraving(mvpMatrix, modelViewMatrix, lightDirectionX, lightDirectionY,
+                    lightDirectionZ, cardGradientRotation, surfaceWidth, surfaceHeight);
         }
 
         qrProgram.bind(mvpMatrix, modelViewMatrix, lightDirectionX, lightDirectionY,
@@ -162,6 +152,65 @@ final class WalletCard3D {
         GLES20.glDepthMask(true);
         GLES20.glDepthFunc(GLES20.GL_LEQUAL);
 
+        // The default face is translucent here; a gift face is opaque and must
+        // be drawn before its diamond or it would cover the original gem.
+        if (skinColor == 0) {
+            drawDiamond(mvpMatrix, modelViewMatrix, lightDirectionX, lightDirectionY,
+                    lightDirectionZ, cardGradientRotation, surfaceWidth, surfaceHeight);
+        }
+
+        if (frontContentTexture != 0) {
+            frontContentProgram.bind(mvpMatrix, modelViewMatrix, lightDirectionX, lightDirectionY,
+                    lightDirectionZ, cardGradientRotation, qrButtonRightPadding);
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, frontContentTexture);
+            GLES20.glEnable(GLES20.GL_BLEND);
+            GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+            GLES20.glDepthFunc(GLES20.GL_EQUAL);
+            GLES20.glDepthMask(false);
+            drawMesh(frontMesh, frontContentProgram);
+            GLES20.glDepthMask(true);
+            GLES20.glDepthFunc(GLES20.GL_LEQUAL);
+            GLES20.glDisable(GLES20.GL_BLEND);
+        }
+
+        if (skinColor != 0) {
+            drawDiamond(mvpMatrix, modelViewMatrix, lightDirectionX, lightDirectionY,
+                    lightDirectionZ, cardGradientRotation, surfaceWidth, surfaceHeight);
+        }
+
+        // Emboss the address against the already-painted gift face. The skin
+        // shader keeps its own antialiased coverage instead of a solid stencil.
+        if (hasEngraving && skinColor != 0) {
+            drawEngraving(mvpMatrix, modelViewMatrix, lightDirectionX, lightDirectionY,
+                    lightDirectionZ, cardGradientRotation, surfaceWidth, surfaceHeight);
+        }
+
+        edgeProgram.bind(mvpMatrix, modelViewMatrix, lightDirectionX, lightDirectionY,
+                lightDirectionZ, cardGradientRotation, qrButtonRightPadding);
+        edgeProgram.setSkinColor(skinColor);
+        drawMesh(edgeMesh, edgeProgram);
+
+        if (bodyProgram.positionAttribute >= 0) {
+            GLES20.glDisableVertexAttribArray(bodyProgram.positionAttribute);
+        }
+        if (bodyProgram.normalAttribute >= 0) {
+            GLES20.glDisableVertexAttribArray(bodyProgram.normalAttribute);
+        }
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE2);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE4);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
+    }
+
+    private void drawDiamond(float[] mvpMatrix, float[] modelViewMatrix,
+                             float lightDirectionX, float lightDirectionY, float lightDirectionZ,
+                             float cardGradientRotation, int surfaceWidth, int surfaceHeight) {
         if (diamondAlpha > 0f && diamondBounds != null && diamondBounds[2] > 0 && diamondBounds[3] > 0) {
             if (diamondProgram == null) {
                 diamondProgram = new MaterialProgram(context,
@@ -200,41 +249,34 @@ final class WalletCard3D {
             GLES20.glDepthMask(true);
             GLES20.glDepthFunc(GLES20.GL_LEQUAL);
         }
+    }
 
-        if (frontContentTexture != 0) {
-            frontContentProgram.bind(mvpMatrix, modelViewMatrix, lightDirectionX, lightDirectionY,
-                    lightDirectionZ, cardGradientRotation, qrButtonRightPadding);
-            GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, frontContentTexture);
-            GLES20.glEnable(GLES20.GL_BLEND);
-            GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
-            GLES20.glDepthFunc(GLES20.GL_EQUAL);
-            GLES20.glDepthMask(false);
-            drawMesh(frontMesh, frontContentProgram);
-            GLES20.glDepthMask(true);
-            GLES20.glDepthFunc(GLES20.GL_LEQUAL);
-            GLES20.glDisable(GLES20.GL_BLEND);
-        }
+    void setSkinColor(int color) {
+        skinColor = color;
+    }
 
-        edgeProgram.bind(mvpMatrix, modelViewMatrix, lightDirectionX, lightDirectionY,
+    private void drawEngraving(float[] mvpMatrix, float[] modelViewMatrix,
+                               float lightDirectionX, float lightDirectionY, float lightDirectionZ,
+                               float cardGradientRotation, int surfaceWidth, int surfaceHeight) {
+        engravingProgram.bind(mvpMatrix, modelViewMatrix, lightDirectionX, lightDirectionY,
                 lightDirectionZ, cardGradientRotation, qrButtonRightPadding);
-        drawMesh(edgeMesh, edgeProgram);
-
-        if (bodyProgram.positionAttribute >= 0) {
-            GLES20.glDisableVertexAttribArray(bodyProgram.positionAttribute);
+        engravingProgram.setSkinColor(skinColor);
+        WalletCardQrBounds.compute(mvpMatrix, surfaceWidth, surfaceHeight,
+                engravingUvBounds[0], engravingUvBounds[1], engravingUvBounds[2], engravingUvBounds[3],
+                ENGRAVING_WIDTH, ENGRAVING_HEIGHT, true, engravingScissor, uvFootprint);
+        GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
+        GLES20.glScissor(engravingScissor[0], engravingScissor[1], engravingScissor[2], engravingScissor[3]);
+        if (skinColor != 0) {
+            GLES20.glEnable(GLES20.GL_BLEND);
+            GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
         }
-        if (bodyProgram.normalAttribute >= 0) {
-            GLES20.glDisableVertexAttribArray(bodyProgram.normalAttribute);
-        }
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE2);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE4);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
+        GLES20.glDepthFunc(GLES20.GL_EQUAL);
+        GLES20.glDepthMask(false);
+        drawMesh(frontMesh, engravingProgram);
+        if (skinColor != 0) GLES20.glDisable(GLES20.GL_BLEND);
+        GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+        GLES20.glDepthMask(true);
+        GLES20.glDepthFunc(GLES20.GL_LEQUAL);
     }
 
     void setEngravingBitmap(Bitmap bitmap) {
@@ -697,6 +739,7 @@ final class WalletCard3D {
         private final int qrCenterUniform;
         private final int diamondBoundsUniform;
         private final int diamondAlphaUniform;
+        private final int skinColorUniform;
 
         MaterialProgram(Context context, String vertexSource, String fragmentSource,
                         String material, String defines) {
@@ -736,6 +779,7 @@ final class WalletCard3D {
             );
             diamondBoundsUniform = GLES20.glGetUniformLocation(program, "uDiamondBounds");
             diamondAlphaUniform = GLES20.glGetUniformLocation(program, "uDiamondAlpha");
+            skinColorUniform = GLES20.glGetUniformLocation(program, "uSkinColor");
             GLES20.glUseProgram(program);
             GLES20.glUniform1i(GLES20.glGetUniformLocation(program, "uFinishLut"), 4);
             GLES20.glUniform1i(cardDetailTextureUniform, 0);
@@ -752,6 +796,15 @@ final class WalletCard3D {
         void setEngravingTexel(float x, float y) {
             GLES20.glUseProgram(program);
             GLES20.glUniform2f(engravingTexelUniform, x, y);
+        }
+
+        void setSkinColor(int color) {
+            if (skinColorUniform < 0) return;
+            GLES20.glUniform4f(skinColorUniform,
+                    ((color >> 16) & 0xFF) / 255f,
+                    ((color >> 8) & 0xFF) / 255f,
+                    (color & 0xFF) / 255f,
+                    color == 0 ? 0f : 1f);
         }
 
         void bind(float[] mvpMatrix, float[] modelViewMatrix,

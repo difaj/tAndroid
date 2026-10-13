@@ -116,6 +116,7 @@ public class WalletCardGLRenderer extends GLIconRenderer {
         }
     }
     private volatile Bitmap engravingBitmap;
+    private volatile int skinColor;
     private Bitmap uploadedEngravingBitmap;
     private volatile int cardIconResId;
     private int uploadedCardIconResId;
@@ -164,6 +165,10 @@ public class WalletCardGLRenderer extends GLIconRenderer {
         engravingBitmap = bitmap;
     }
 
+    void setSkinColor(int color) {
+        skinColor = color;
+    }
+
     void setCardIcon(int drawableResId) {
         cardIconResId = drawableResId;
     }
@@ -202,6 +207,7 @@ public class WalletCardGLRenderer extends GLIconRenderer {
         if (card == null) {
             return;
         }
+        card.setSkinColor(skinColor);
         int currentCardIconResId = cardIconResId;
         if (currentCardIconResId != uploadedCardIconResId) {
             card.setCardIcon(context, currentCardIconResId, qrButtonRightPadding);

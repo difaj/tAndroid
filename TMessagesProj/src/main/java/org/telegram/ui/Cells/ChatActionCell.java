@@ -670,7 +670,7 @@ public class ChatActionCell extends BaseCell implements DownloadController.FileD
         }
         currentMessageObject = messageObject;
         if (hasWalletActionLayout() && walletActionLayout == null) {
-            walletActionLayout = new WalletActionLayout(this, themeDelegate);
+            walletActionLayout = new WalletActionLayout(this, themeDelegate, currentAccount);
             walletActionLayout.setOnClickListener(this::openGramTransaction);
             walletActionLayout.setSpoilersSuppressed(spoilersSuppressed);
         }

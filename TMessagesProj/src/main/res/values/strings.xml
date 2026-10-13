@@ -11295,6 +11295,9 @@
     <string name="WalletSendGrams">Send Grams</string>
     <string name="WalletInsufficientFunds">Insufficient Funds.</string>
     <string name="WalletTitle">Wallet</string>
+    <string name="WalletSkins">Skins</string>
+    <string name="WalletSkinDefault">Default</string>
+    <string name="WalletSkinsEmpty">No collectible gifts yet</string>
     <string name="WalletAuthorizeTransactionPasscode">Enter your current Telegram passcode to authorize transaction.</string>
     <string name="WalletConfirmWithFingerprint">Confirm with Fingerprint</string>
     <string name="WalletConfirmWithPasscode">Confirm with Passcode</string>

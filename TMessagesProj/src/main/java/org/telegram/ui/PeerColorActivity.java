@@ -3811,7 +3811,10 @@ public class PeerColorActivity extends BaseFragment implements NotificationCente
                 return;
             }
 
-            if (lastDocument == document) return;
+            if (lastDocument == document || lastDocumentId == document.id) {
+                lastDocument = document;
+                return;
+            }
             lastDocument = document;
             lastDocumentId = document.id;
 

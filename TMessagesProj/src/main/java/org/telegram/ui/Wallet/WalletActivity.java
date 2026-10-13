@@ -30,6 +30,7 @@ import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.ShapeDrawable;
 import android.graphics.drawable.shapes.RoundRectShape;
@@ -48,6 +49,7 @@ import android.text.style.ForegroundColorSpan;
 import android.text.style.RelativeSizeSpan;
 import android.text.style.UpdateAppearance;
 import android.util.TypedValue;
+import android.util.Base64;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -77,6 +79,9 @@ import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.Emoji;
 import org.telegram.messenger.FileLog;
+import org.telegram.messenger.FileLoader;
+import org.telegram.messenger.DocumentObject;
+import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
@@ -86,9 +91,11 @@ import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.tgnet.ConnectionsManager;
+import org.telegram.tgnet.SerializedData;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_account;
 import org.telegram.tgnet.tl.TL_toncenter;
+import org.telegram.tgnet.tl.TL_stars;
 import org.telegram.tgnet.tl.TL_wallet;
 import org.telegram.ui.ActionBar.ActionBarMenu;
 import org.telegram.ui.ActionBar.ActionBarMenuSubItem;
@@ -101,6 +108,7 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.CameraScanActivity;
 import org.telegram.ui.ChatActivity;
 import org.telegram.ui.Components.AnimatedFloat;
+import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.AnimatedColor;
 import org.telegram.ui.Components.AnimatedTextView;
 import org.telegram.ui.Components.BottomSheetWithRecyclerListView;
@@ -159,6 +167,11 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
     private static Typeface walletAddressTypeface;
 
     private WalletCardComponent card;
+    private static final String CARD_SKIN_GIFT_ID_KEY = "wallet_card_skin_gift_id";
+    private static final String CARD_SKIN_GIFT_DATA_KEY = "wallet_card_skin_gift_data";
+    private StarsController.GiftsList cardSkinGifts;
+    private TL_stars.TL_starGiftUnique cardSkinGift;
+    private long selectedCardSkinId;
     private View cardShadowView;
     private int cardItemPosition;
     private FrameLayout cardLayer;
@@ -372,6 +385,12 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
             };
             updateRunnables.add(currenciesLoaded);
             layoutCurrencies.run();
+            o.add(R.drawable.msg_gift_premium, getString(R.string.WalletSkins), () -> {
+                o.dismiss();
+                final StarsController.GiftsList skins = getCardSkinGifts();
+                new WalletSkinsSheet(WalletActivity.this, skins, selectedCardSkinId,
+                        WalletActivity.this::selectCardSkin).show();
+            });
             o.add(R.drawable.wallet_lock, getString(R.string.Passcode), () -> {
                 o.dismiss();
                 presentFragment(PasscodeActivity.determineOpenFragment());
@@ -596,7 +615,9 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
             }
         };
         card.setDiamondOnCard(true);
-        card.setCardOnClickListener(v -> openWalletQRAlert(getContext(), currentAccount, getResourceProvider()));
+        card.setSkinGift(cardSkinGift);
+        if (selectedCardSkinId != 0 && cardSkinGift == null) card.setAlpha(0f);
+        card.setCardOnClickListener(v -> openWalletQRAlert(getContext(), currentAccount, getResourceProvider(), cardSkinGift));
         listView.addEdgeEffectListener(cardOverscrollListener);
         cardShadowView = new View(context) {
             @Override
@@ -664,7 +685,7 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
         addFundsButton.setText(LocaleController.getString(R.string.WalletAddFunds));
         buttonsContainer.addView(addFundsButton, LayoutHelper.createLinear(0, 48, 1.0f, 0, 0, 4, 0));
         addFundsButton.setOnClickListener(v -> {
-            openWalletQRAlert(getContext(), currentAccount, getResourceProvider());
+            openWalletQRAlert(getContext(), currentAccount, getResourceProvider(), cardSkinGift);
         });
 
         sendButton = new ButtonWithCounterView(context, resourceProvider).setRound();
@@ -1505,26 +1526,28 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
 
     private void updateBalanceTransitionColors(float progress) {
         final int actionBarTextColor = getThemedColor(Theme.key_windowBackgroundWhiteBlackText);
+        final int skinTextColor = cardSkinGift == null || card == null
+                ? Color.WHITE : card.getSkinTextColor();
         balanceView.setTextColor(AndroidUtilities.lerpColor(
-                Color.WHITE,
+                skinTextColor,
                 actionBarTextColor,
                 progress
         ));
         usdBalanceView.setTextColor(AndroidUtilities.lerpColor(
-                0xFF87EFFF,
+                cardSkinGift == null ? 0xFF87EFFF : skinTextColor,
                 ColorUtils.setAlphaComponent(actionBarTextColor, Math.round(255 * 0.56f)),
                 progress
         ));
         if (balanceGramIconSpan != null) {
             balanceGramIconSpan.setOverrideColor(AndroidUtilities.lerpColor(
-                    Color.WHITE,
+                    skinTextColor,
                     getThemedColor(Theme.key_featuredStickers_addButton),
                     progress
             ));
         }
         if (balanceGramLabelSpan != null) {
             balanceGramLabelSpan.setColor(ColorUtils.setAlphaComponent(
-                    0xFF6DDCFF,
+                    cardSkinGift == null ? 0xFF6DDCFF : skinTextColor,
                     Math.round(255 * (1.0f - progress))
             ));
         }
@@ -1580,6 +1603,11 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
     }
 
     public static void openWalletQRAlert(Context context, int currentAccount, Theme.ResourcesProvider resourcesProvider) {
+        openWalletQRAlert(context, currentAccount, resourcesProvider, null);
+    }
+
+    private static void openWalletQRAlert(Context context, int currentAccount, Theme.ResourcesProvider resourcesProvider,
+                                          TL_stars.TL_starGiftUnique skinGift) {
         final GramWallet wallet = GramWallet.getInstance(currentAccount);
         if (!wallet.isReady()) {
             return;
@@ -1590,10 +1618,15 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
             return;
         }
 
-        final BottomSheet.Builder builder = new BottomSheet.Builder(context, false, resourcesProvider, WALLET_BLUE_LIGHT);
+        final TL_stars.starGiftAttributeBackdrop backdrop = skinGift == null ? null :
+                StarsController.findAttribute(skinGift.attributes, TL_stars.starGiftAttributeBackdrop.class);
+        final int sheetColor = skinGift == null ? WALLET_BLUE_LIGHT :
+                backdrop == null ? 0xFF334155 : backdrop.center_color | 0xFF000000;
+        final boolean lightSkin = skinGift != null && ColorUtils.calculateLuminance(sheetColor) > 0.6;
+        final BottomSheet.Builder builder = new BottomSheet.Builder(context, false, resourcesProvider, sheetColor);
 
         final FrameLayout content = new FrameLayout(context);
-        content.setBackground(new WalletSheetGradientDrawable());
+        content.setBackground(new WalletSheetGradientDrawable(skinGift == null ? 0 : sheetColor));
 
         final LinearLayout layout = new LinearLayout(context);
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -1605,12 +1638,15 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
                 dp(12), dp(30), dp(12), dp(12) + AndroidUtilities.navigationBarHeight
         ));
 
-        final WalletQrView qrView = new WalletQrView(context, address);
+        final WalletQrView qrView = new WalletQrView(context, address, skinGift);
         layout.addView(qrView, LayoutHelper.createLinear(288, 302, Gravity.CENTER_HORIZONTAL));
 
         final TextView description = new TextView(context);
         description.setText(LocaleController.getString(R.string.WalletReceiveInfo));
         description.setTextColor(Color.WHITE);
+        if (skinGift != null) {
+            description.setShadowLayer(dp(2), 0, dp(1), 0x55000000);
+        }
         description.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
         description.setGravity(Gravity.CENTER);
         description.setLineSpacing(dp(1), 1.0f);
@@ -1633,6 +1669,9 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
 
         final ImageView closeButton = new ImageView(context);
         closeButton.setImageResource(R.drawable.ic_close_white);
+        if (lightSkin) {
+            closeButton.setColorFilter(Color.BLACK, PorterDuff.Mode.SRC_IN);
+        }
         closeButton.setPadding(dp(12), dp(12), dp(12), dp(12));
         closeButton.setContentDescription(getString(R.string.Close));
         ScaleStateListAnimator.apply(closeButton);
@@ -1643,7 +1682,7 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
         sheet.occupyNavigationBar = true;
         sheet.setApplyTopPadding(false);
         sheet.setApplyBottomPadding(false);
-        sheet.fixNavigationBar(WALLET_BLUE_LIGHT);
+        sheet.fixNavigationBar(sheetColor);
 
         closeButton.setOnClickListener(v -> sheet.dismiss());
         qrView.setOnCopyAddressListener(() -> {
@@ -1651,9 +1690,9 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
         });
 
         sheet.show();
-        sheet.setOverlayNavBarColor(WALLET_BLUE_LIGHT);
-        AndroidUtilities.setNavigationBarColor(sheet, WALLET_BLUE_LIGHT, false);
-        AndroidUtilities.setLightNavigationBar(sheet, false);
+        sheet.setOverlayNavBarColor(sheetColor);
+        AndroidUtilities.setNavigationBarColor(sheet, sheetColor, lightSkin);
+        AndroidUtilities.setLightNavigationBar(sheet, lightSkin);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && sheet.getWindow() != null) {
             sheet.getWindow().setNavigationBarContrastEnforced(false);
         }
@@ -3027,8 +3066,12 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
         if (cachedLoading[t] == null) {
             cachedLoading[t] = new SpannableString("l");
             final LoadingSpan loadingSpan = new LoadingSpan(t == 0 ? balanceView : usdBalanceView, dp(t == 0 ? 100 : 50));
-            loadingSpan.setColors(Theme.multAlpha(0xFFFFFFFF, 0.45f), Theme.multAlpha(0xFFFFFFFF, 0.20f));
             ((SpannableString) cachedLoading[t]).setSpan(loadingSpan, 0, cachedLoading[t].length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        final LoadingSpan[] spans = ((Spanned) cachedLoading[t]).getSpans(0, cachedLoading[t].length(), LoadingSpan.class);
+        if (spans.length > 0) {
+            final int color = cardSkinGift == null || card == null ? Color.WHITE : card.getSkinTextColor();
+            spans[0].setColors(Theme.multAlpha(color, 0.45f), Theme.multAlpha(color, 0.20f));
         }
         return cachedLoading[t];
     }
@@ -3058,7 +3101,10 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
         if (account != currentAccount) return;
-        if (id == NotificationCenter.walletUpdate && balanceView != null) {
+        if (id == NotificationCenter.starUserGiftsLoaded
+                && args.length > 1 && args[1] == cardSkinGifts) {
+            resolveCardSkin();
+        } else if (id == NotificationCenter.walletUpdate && balanceView != null) {
             update();
             for (Runnable callback : updateRunnables) {
                 callback.run();
@@ -3308,12 +3354,101 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
 
     private Runnable cancelListen;
 
+    private StarsController.GiftsList getCardSkinGifts() {
+        if (cardSkinGifts == null) {
+            cardSkinGifts = new StarsController.GiftsList(currentAccount, 0, false);
+            cardSkinGifts.forceTypeIncludeFlag(StarsController.GiftsList.INCLUDE_TYPE_UNIQUE_FLAG, false);
+        }
+        return cardSkinGifts;
+    }
+
+    private void selectCardSkin(TL_stars.TL_starGiftUnique gift) {
+        selectedCardSkinId = gift == null ? 0 : gift.id;
+        cardSkinGift = gift;
+        saveCardSkinSelection(gift);
+        if (card != null) {
+            card.setSkinGift(gift);
+            card.setAlpha(1f);
+            updateBalanceTransitionColors(balanceTransitionProgress);
+        }
+    }
+
+    private void saveCardSkinSelection(TL_stars.TL_starGiftUnique gift) {
+        final android.content.SharedPreferences.Editor editor = getMessagesController().getMainSettings().edit()
+                .putLong(CARD_SKIN_GIFT_ID_KEY, selectedCardSkinId);
+        if (gift == null) {
+            editor.remove(CARD_SKIN_GIFT_DATA_KEY);
+        } else {
+            final SerializedData data = new SerializedData(gift.getObjectSize());
+            gift.serializeToStream(data);
+            editor.putString(CARD_SKIN_GIFT_DATA_KEY,
+                    Base64.encodeToString(data.toByteArray(), Base64.NO_WRAP));
+            data.cleanup();
+        }
+        editor.apply();
+    }
+
+    private TL_stars.TL_starGiftUnique getSavedCardSkin() {
+        return getSelectedCardSkin(currentAccount);
+    }
+
+    static TL_stars.TL_starGiftUnique getSelectedCardSkin(int account) {
+        final android.content.SharedPreferences preferences = MessagesController.getMainSettings(account);
+        final long selectedId = preferences.getLong(CARD_SKIN_GIFT_ID_KEY, 0);
+        if (selectedId == 0) return null;
+        final String value = preferences.getString(CARD_SKIN_GIFT_DATA_KEY, null);
+        if (value == null) return null;
+        try {
+            final SerializedData data = new SerializedData(Base64.decode(value, Base64.DEFAULT));
+            final TL_stars.StarGift gift = TL_stars.StarGift.TLdeserialize(
+                    data, data.readInt32(false), false);
+            data.cleanup();
+            if (gift instanceof TL_stars.TL_starGiftUnique && gift.id == selectedId) {
+                return (TL_stars.TL_starGiftUnique) gift;
+            }
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+        return null;
+    }
+
+    private void resolveCardSkin() {
+        if (selectedCardSkinId == 0 || cardSkinGifts == null) return;
+        for (TL_stars.SavedStarGift saved : cardSkinGifts.gifts) {
+            if (saved.gift instanceof TL_stars.TL_starGiftUnique && saved.gift.id == selectedCardSkinId) {
+                if (cardSkinGift == null) {
+                    cardSkinGift = (TL_stars.TL_starGiftUnique) saved.gift;
+                    saveCardSkinSelection(cardSkinGift);
+                    if (card != null) {
+                        card.setSkinGift(cardSkinGift);
+                        updateBalanceTransitionColors(balanceTransitionProgress);
+                    }
+                }
+                if (card != null) card.setAlpha(1f);
+                return;
+            }
+        }
+        if (!cardSkinGifts.endReached) {
+            cardSkinGifts.load();
+        } else if (cardSkinGift == null) {
+            if (card != null) {
+                card.setSkinGift(null);
+                card.setAlpha(1f);
+                updateBalanceTransitionColors(balanceTransitionProgress);
+            }
+        }
+    }
+
     @Override
     public boolean onFragmentCreate() {
         getNotificationCenter().addObserver(this, NotificationCenter.walletUpdate);
         getNotificationCenter().addObserver(this, NotificationCenter.starBalanceUpdated);
         getNotificationCenter().addObserver(this, NotificationCenter.walletTransactionsUpdate);
         getNotificationCenter().addObserver(this, NotificationCenter.didSetOrRemoveTwoStepPassword);
+        getNotificationCenter().addObserver(this, NotificationCenter.starUserGiftsLoaded);
+        selectedCardSkinId = getMessagesController().getMainSettings().getLong(CARD_SKIN_GIFT_ID_KEY, 0);
+        cardSkinGift = selectedCardSkinId == 0 ? null : getSavedCardSkin();
+        if (selectedCardSkinId != 0) getCardSkinGifts().load();
         final GramWallet wallet = GramWallet.getInstance(currentAccount);
         nftsList = wallet.getCollectibles();
         nftsList.subscribe(onNftsChanged);
@@ -3337,6 +3472,8 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
         getNotificationCenter().removeObserver(this, NotificationCenter.starBalanceUpdated);
         getNotificationCenter().removeObserver(this, NotificationCenter.walletTransactionsUpdate);
         getNotificationCenter().removeObserver(this, NotificationCenter.didSetOrRemoveTwoStepPassword);
+        getNotificationCenter().removeObserver(this, NotificationCenter.starUserGiftsLoaded);
+        if (cardSkinGifts != null) cardSkinGifts.cancel();
         AndroidUtilities.removeFromParent(balanceOverlay);
         if (transactionsList != null) {
             transactionsList.cancel();
@@ -3384,14 +3521,16 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
         return walletAddressTypeface;
     }
 
-    private static Bitmap createWalletQrCode(Context context, String address) {
+    private static Bitmap createWalletQrCode(Context context, String address, boolean hasSkinModel) {
         try {
             final HashMap<EncodeHintType, Object> hints = new HashMap<>();
             hints.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.H);
             hints.put(EncodeHintType.MARGIN, 0);
             final TelegramQRCodeWriter writer = new TelegramQRCodeWriter();
-            final Drawable gramLogo = context.getResources().getDrawable(R.drawable.mini_gram_72).mutate();
-            writer.setCenterDrawable(gramLogo);
+            // The writer already reserves a high-error-correction area for its center image.
+            // Leave that area white while the gift document is loaded asynchronously above it.
+            writer.setCenterDrawable(hasSkinModel ? new ColorDrawable(Color.WHITE) :
+                    context.getResources().getDrawable(R.drawable.mini_gram_72).mutate());
             return writer.encode("ton://transfer/" + address, 768, 768, hints, null);
         } catch (Exception e) {
             FileLog.e(e);
@@ -3411,10 +3550,10 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
         private boolean flipInProgress;
         private ValueAnimator flipAnimator;
 
-        public WalletQrView(Context context, String address) {
+        public WalletQrView(Context context, String address, TL_stars.TL_starGiftUnique skinGift) {
             super(context);
 
-            final AddressRingView ringView = new AddressRingView(context, address);
+            final AddressRingView ringView = new AddressRingView(context, address, skinGift != null);
             addView(ringView, LayoutHelper.createFrame(
                     LayoutHelper.MATCH_PARENT,
                     LayoutHelper.MATCH_PARENT,
@@ -3447,11 +3586,21 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
 
             final ImageView qrImage = new ImageView(context);
             qrImage.setScaleType(ImageView.ScaleType.FIT_XY);
-            qrImage.setImageBitmap(createWalletQrCode(context, address));
+            final TLRPC.Document modelDocument = skinGift == null ? null : skinGift.getDocument();
+            qrImage.setImageBitmap(createWalletQrCode(context, address, modelDocument != null));
             qrContainer.addView(qrImage, LayoutHelper.createFrame(
                     LayoutHelper.MATCH_PARENT,
                     LayoutHelper.MATCH_PARENT
             ));
+            if (modelDocument != null) {
+                final BackupImageView modelImage = new BackupImageView(context);
+                modelImage.getImageReceiver().setAllowStartAnimation(false);
+                final TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(modelDocument.thumbs, dp(100));
+                modelImage.setImage(ImageLocation.getForDocument(modelDocument), "100_100",
+                        ImageLocation.getForDocument(thumb, modelDocument), "100_100",
+                        DocumentObject.getSvgThumb(modelDocument, Theme.key_windowBackgroundGray, 0.3f), skinGift);
+                qrContainer.addView(modelImage, LayoutHelper.createFrame(32, 32, Gravity.CENTER));
+            }
 
             copyButton = new TextView(context);
             copyButton.setText(LocaleController.getString(R.string.WalletCopyAddress));
@@ -3631,14 +3780,14 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
         private float textOffset;
         private ValueAnimator scrollAnimator;
 
-        public AddressRingView(Context context, String address) {
+        public AddressRingView(Context context, String address, boolean hasSkin) {
             super(context);
             this.address = formatAddress(
                     address.toUpperCase()
                             .replace('_', ' ')
                             .replace('-', ' ')
             ) + "   ·   ";
-            paint.setColor(0xFF0072CE);
+            paint.setColor(hasSkin ? 0xCCFFFFFF : 0xFF0072CE);
             paint.setTextSize(dp(12));
             paint.setTypeface(AndroidUtilities.getTypeface("fonts/rmono.ttf"));
         }
@@ -3741,11 +3890,16 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
     private static class WalletSheetGradientDrawable extends Drawable {
 
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final int skinColor;
         private final Path path = new Path();
         private final RectF rect = new RectF();
         private final float[] cornerRadii = {
                 dp(24), dp(24), dp(24), dp(24), 0, 0, 0, 0
         };
+
+        WalletSheetGradientDrawable(int skinColor) {
+            this.skinColor = skinColor;
+        }
 
         @Override
         protected void onBoundsChange(Rect bounds) {
@@ -3753,6 +3907,11 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
             rect.set(bounds);
             path.reset();
             path.addRoundRect(rect, cornerRadii, Path.Direction.CW);
+            if (skinColor != 0) {
+                paint.setShader(null);
+                paint.setColor(skinColor);
+                return;
+            }
             paint.setShader(new LinearGradient(
                     0,
                     bounds.top,

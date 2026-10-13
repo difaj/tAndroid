@@ -5,11 +5,16 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.ColorFilter;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Typeface;
+import android.graphics.PixelFormat;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.PowerManager;
 import android.text.SpannableString;
@@ -35,16 +40,25 @@ import java.util.Locale;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.BillingController;
+import org.telegram.messenger.DocumentObject;
+import org.telegram.messenger.FileLoader;
+import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
+import org.telegram.tgnet.TLRPC;
+import org.telegram.tgnet.tl.TL_stars;
+import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.Components.BackupImageView;
+import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.Components.AnimatedTextView;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.ColoredImageSpan;
+import org.telegram.ui.Stars.StarsController;
 
 public class WalletCardComponent extends FrameLayout implements NotificationCenter.NotificationCenterDelegate {
 
@@ -71,6 +85,11 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
     private View cardView;
     private FrameLayout frontFace;
     private Bitmap engravingBitmap;
+    private TL_stars.TL_starGiftUnique skinGift;
+    private FrameLayout skinLayer;
+    private SkinEngravingView skinEngravingView;
+    private int skinTextColor = Color.WHITE;
+    private int skinBackgroundColor;
     private OnClickListener cardClickListener;
     private final TextView cardHolderView;
     private final View balanceAnchor;
@@ -192,8 +211,10 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
     /** Opt in only for the main wallet screen; other cards retain the text icon. */
     public void setDiamondOnCard(boolean enabled) {
         diamondOnCard = enabled;
-        if (!enabled && cardView instanceof WalletCardView) {
-            ((WalletCardView) cardView).setDiamondBounds(0, 0, 0, 0);
+        if (cardView instanceof WalletCardView) {
+            final WalletCardView view = (WalletCardView) cardView;
+            view.setDiamondAlpha(diamondOnCard ? 1f - balanceTransitionProgress : 0f);
+            if (!diamondOnCard) view.setDiamondBounds(0, 0, 0, 0);
         }
         balanceView.invalidate();
     }
@@ -220,7 +241,7 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
         if (progress == 0f) hasBalanceDiamondTransform = false;
         balanceActionBarWidth = actionBarWidth;
         if (cardView instanceof WalletCardView) {
-            ((WalletCardView) cardView).setDiamondAlpha(1f - progress);
+            ((WalletCardView) cardView).setDiamondAlpha(diamondOnCard ? 1f - progress : 0f);
         }
         balanceView.invalidate();
     }
@@ -253,6 +274,9 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
             return;
         }
         cardNumber = formattedNumber;
+        if (skinEngravingView != null) {
+            skinEngravingView.setAddress(formattedNumber);
+        }
         setEngravingBitmap(createCardNumberEngraving(getContext(), formattedNumber));
     }
 
@@ -337,6 +361,9 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
         for (int i = 0; i < childCount; i++) {
             frontFace.addView(children[i], layoutParams[i]);
         }
+        if (skinEngravingView != null) {
+            skinEngravingView.setVisibility(use2D ? VISIBLE : GONE);
+        }
     }
 
     public void setCardOnClickListener(OnClickListener listener) {
@@ -356,10 +383,84 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
     public void setEngravingBitmap(Bitmap bitmap) {
         engravingBitmap = bitmap;
         if (cardView instanceof WalletCard2DView) {
-            ((WalletCard2DView) cardView).setEngravingBitmap(bitmap);
+            ((WalletCard2DView) cardView).setEngravingBitmap(skinGift == null ? bitmap : null);
         } else {
             ((WalletCardView) cardView).setEngravingBitmap(bitmap);
         }
+    }
+
+    /** The profile gift supplies the card's backdrop, repeating symbol and model. */
+    public void setSkinGift(TL_stars.TL_starGiftUnique gift) {
+        if (skinGift == gift) return;
+        if (skinLayer != null) {
+            frontFace.removeView(skinLayer);
+            skinLayer = null;
+            skinEngravingView = null;
+        }
+        skinGift = gift;
+        final TL_stars.starGiftAttributeBackdrop backdrop = gift == null ? null :
+                StarsController.findAttribute(gift.attributes, TL_stars.starGiftAttributeBackdrop.class);
+        skinBackgroundColor = gift == null ? 0 : SkinBackground.colorForBackdrop(backdrop);
+        // Keep the primary card typography white across all gift colors.
+        // Switching to black on light backdrops makes it look unlike the card.
+        skinTextColor = Color.WHITE;
+        cardHolderView.setTextColor(skinTextColor);
+        balanceView.setTextColor(skinTextColor);
+        usdBalanceView.setTextColor(gift == null ? 0xFF87EFFF :
+                (skinTextColor & 0x00FFFFFF) | 0x80000000);
+        cardHolderView.setShadowLayer(gift == null ? dp(1) : dp(.7f),
+                gift == null ? dp(1) : 0, dp(1),
+                gift == null ? 0xFF0285D4 : 0x66000000);
+        balanceView.getDrawable().setShadowLayer(gift == null ? 0 : dp(.7f),
+                0, dp(.5f), gift == null ? 0 : 0x44000000);
+        usdBalanceView.getDrawable().setShadowLayer(0, 0, 0, 0);
+        if (cardView instanceof WalletCardView) {
+            ((WalletCardView) cardView).setSkinColor(skinBackgroundColor);
+        }
+
+        if (gift != null) {
+            skinLayer = new FrameLayout(getContext());
+            skinLayer.setClipChildren(false);
+            skinLayer.setBackground(new SkinBackground(skinLayer, currentAccount, backdrop,
+                    StarsController.findAttribute(gift.attributes, TL_stars.starGiftAttributePattern.class)));
+            frontFace.addView(skinLayer, 0, LayoutHelper.createFrame(336, 205, Gravity.LEFT | Gravity.TOP));
+
+            skinEngravingView = new SkinEngravingView(getContext());
+            skinEngravingView.setAddress(cardNumber);
+            skinEngravingView.setColor(skinTextColor);
+            skinEngravingView.setVisibility(use2D ? VISIBLE : GONE);
+            skinLayer.addView(skinEngravingView, LayoutHelper.createFrame(336, 205, Gravity.LEFT | Gravity.TOP));
+
+            final FrameLayout modelTile = new FrameLayout(getContext());
+            modelTile.setClipChildren(true);
+            final GradientDrawable tileBackground = new GradientDrawable(
+                    GradientDrawable.Orientation.TL_BR,
+                    new int[] { 0xFFF9FBFC, 0xFFADB8C0, 0xFFFFFFFF });
+            tileBackground.setCornerRadius(dp(9));
+            tileBackground.setStroke(dp(1), 0x88FFFFFF);
+            modelTile.setBackground(tileBackground);
+            modelTile.setClipToOutline(true);
+            skinLayer.addView(modelTile, LayoutHelper.createFrame(50, 38,
+                    Gravity.LEFT | Gravity.TOP, 336 - qrButtonRightPadding - 50, 73, 0, 0));
+            final BackupImageView modelImage = new BackupImageView(getContext());
+            modelImage.getImageReceiver().setAllowStartAnimation(false);
+            modelTile.addView(modelImage, LayoutHelper.createFrame(34, 34, Gravity.CENTER));
+            final TLRPC.Document document = gift.getDocument();
+            if (document != null) {
+                final TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(document.thumbs, dp(100));
+                modelImage.setImage(ImageLocation.getForDocument(document), "100_100",
+                        ImageLocation.getForDocument(thumb, document), "100_100",
+                        DocumentObject.getSvgThumb(document, Theme.key_windowBackgroundGray, 0.3f), gift);
+            }
+        }
+        setEngravingBitmap(engravingBitmap);
+        if (wallet != null && wallet.isReady()) {
+            setWalletBalance(wallet, wallet.getBalance(), false);
+        }
+    }
+
+    public int getSkinTextColor() {
+        return skinTextColor;
     }
 
     /** Adds a vertical tilt in degrees to the live sensor and drag rotation. */
@@ -433,7 +534,7 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
             setCardNumber(formatAddress(currentWallet.getAddress().toUpperCase()));
         }
         if (currentWallet.isReady()) {
-            setWalletBalance(currentWallet, currentWallet.getBalance());
+            setWalletBalance(currentWallet, currentWallet.getBalance(), true);
         }
     }
 
@@ -502,7 +603,7 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
         };
     }
 
-    private void setWalletBalance(GramWallet wallet, long nanotons) {
+    private void setWalletBalance(GramWallet wallet, long nanotons, boolean animate) {
         final SpannableStringBuilder text = new SpannableStringBuilder();
         final SpannableString icon = new SpannableString("GRAM");
         icon.setSpan(new ColoredImageSpan(R.drawable.wallet_gram_large), 0, icon.length(),
@@ -512,9 +613,12 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
         text.append(" ");
         final int labelStart = text.length();
         text.append(LocaleController.getString(R.string.GramCurrency));
-        text.setSpan(new ForegroundColorSpan(0xFF6DDCFF), labelStart, text.length(),
+        text.setSpan(new ForegroundColorSpan(skinGift == null ? 0xFF6DDCFF :
+                (skinTextColor & 0x00FFFFFF) | 0x80000000), labelStart, text.length(),
                 Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        balanceView.setText(text);
+        // A skin changes spans without changing the string; AnimatedTextView's
+        // animated equality check would otherwise keep the previous styling.
+        balanceView.setText(text, animate);
 
         final double grams = (double) nanotons / 1_000_000_000.0;
         final long usdCents = Math.round(grams
@@ -522,7 +626,7 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
                 * 100.0);
         usdBalanceView.setText(BillingController.getInstance().formatCurrency(
                 usdCents, "USD", 2, usdCents % 100 == 0
-        ));
+        ), animate);
     }
 
     static String formatAddress(String address) {
@@ -555,7 +659,8 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
         setAdditionalTilt(additionalTilt);
         setUseGyroscope(gyroscopeTiltScale);
         if (cardView instanceof WalletCardView) {
-            ((WalletCardView) cardView).setDiamondAlpha(1f - balanceTransitionProgress);
+            ((WalletCardView) cardView).setDiamondAlpha(diamondOnCard ? 1f - balanceTransitionProgress : 0f);
+            ((WalletCardView) cardView).setSkinColor(skinBackgroundColor);
         }
         cardView.setOnClickListener(cardClickListener);
         addView(cardView, 0, LayoutHelper.createFrame(
@@ -564,6 +669,125 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
         ));
         if (engravingBitmap != null) {
             setEngravingBitmap(engravingBitmap);
+        }
+    }
+
+    /** A flat gift color with the symbol repeated in offset rows, like a printed card. */
+    private static class SkinBackground extends Drawable {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF rect = new RectF();
+        private final Path clip = new Path();
+        private final AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable pattern;
+        private final int backgroundColor;
+        private final boolean hasPattern;
+
+        SkinBackground(View view, int account, TL_stars.starGiftAttributeBackdrop backdrop,
+                       TL_stars.starGiftAttributePattern attribute) {
+            backgroundColor = colorForBackdrop(backdrop);
+            hasPattern = attribute != null && attribute.document != null;
+            pattern = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable(view, dp(26)) {
+                @Override
+                public void invalidate() {
+                    super.invalidate();
+                    invalidateSelf();
+                }
+            };
+            pattern.setCurrentAccount(account);
+            if (hasPattern) {
+                pattern.set(attribute.document, false);
+                pattern.setColor(backdrop == null ? 0x66000000 : backdrop.pattern_color | 0xFF000000);
+                pattern.setAlpha(89); // 65% transparent, including bright gift symbols.
+            }
+            view.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                @Override
+                public void onViewAttachedToWindow(View v) {
+                    pattern.attach();
+                }
+
+                @Override
+                public void onViewDetachedFromWindow(View v) {
+                    pattern.detach();
+                }
+            });
+            if (view.isAttachedToWindow()) pattern.attach();
+        }
+
+        static int colorForBackdrop(TL_stars.starGiftAttributeBackdrop backdrop) {
+            if (backdrop == null) return 0xFF334155;
+            return backdrop.center_color | 0xFF000000;
+        }
+
+        @Override
+        public void draw(Canvas canvas) {
+            rect.set(getBounds());
+            paint.setColor(backgroundColor);
+            canvas.drawRoundRect(rect, dp(25), dp(25), paint);
+            if (!hasPattern) return;
+            final int save = canvas.save();
+            clip.rewind();
+            clip.addRoundRect(rect, dp(25), dp(25), Path.Direction.CW);
+            canvas.clipPath(clip);
+            final float scaleX = rect.width() / 336f;
+            final float scaleY = rect.height() / 205f;
+            final float size = 26 * scaleX;
+            for (int row = 0; row < 6; row++) {
+                final float y = rect.top + (16 + row * 34) * scaleY;
+                for (int column = 0; column < 5; column++) {
+                    final float x = rect.left + (15 + column * 74 + (row % 2) * 37) * scaleX;
+                    pattern.setBounds(Math.round(x - size / 2), Math.round(y - size / 2),
+                            Math.round(x + size / 2), Math.round(y + size / 2));
+                    pattern.draw(canvas);
+                }
+            }
+            canvas.restoreToCount(save);
+        }
+
+        @Override public void setAlpha(int alpha) { }
+        @Override public void setColorFilter(ColorFilter colorFilter) { }
+        @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+    }
+
+    /** Draw the address at the face's native resolution instead of shrinking an
+     * engraving bitmap and blending three filtered copies over the gift. */
+    private static class SkinEngravingView extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
+        private String address;
+        private int color = Color.WHITE;
+
+        SkinEngravingView(Context context) {
+            super(context);
+            paint.setTypeface(getCardNumberTypeface(context));
+            paint.setTextSize(dp(9.7f));
+            paint.setTextAlign(Paint.Align.CENTER);
+        }
+
+        void setAddress(String address) {
+            this.address = address;
+            invalidate();
+        }
+
+        void setColor(int color) {
+            this.color = color;
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            if (address == null) return;
+            final int save = canvas.save();
+            canvas.translate(dp(313f), dp(102.5f));
+            canvas.rotate(90f);
+            canvas.scale(CARD_NUMBER_LENGTH_SCALE, 1f);
+            final Paint.FontMetrics metrics = paint.getFontMetrics();
+            final float middleBaselineOffset = -(metrics.ascent + metrics.descent) * 0.5f;
+            final String[] lines = formatCardAddress(address).split("\\n");
+            paint.setColor(color);
+            paint.setAlpha(255);
+            canvas.drawText(lines[0], 0, dp(-5.6f) + middleBaselineOffset, paint);
+            if (lines.length > 1) {
+                canvas.drawText(lines[1], 0, dp(5.6f) + middleBaselineOffset, paint);
+            }
+            canvas.restoreToCount(save);
         }
     }
 

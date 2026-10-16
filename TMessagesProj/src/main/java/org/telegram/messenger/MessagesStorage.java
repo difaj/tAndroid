@@ -2614,9 +2614,10 @@ public class MessagesStorage extends BaseController {
                                 int pin = cursor2.intValue(1);
                                 if (pin != Integer.MIN_VALUE) {
                                     filter.pinnedDialogs.put(did, pin);
-                                    if (!dialogsToLoad.contains(did)) {
-                                        dialogsToLoad.add(did);
-                                    }
+                                }
+                                // Included archive/older dialogs must be restored too, not just pins.
+                                if (!dialogsToLoad.contains(did)) {
+                                    dialogsToLoad.add(did);
                                 }
                             } else {
                                 if (!DialogObject.isEncryptedDialog(did)) {
@@ -3291,6 +3292,8 @@ public class MessagesStorage extends BaseController {
                 for (int a = 0, N = vector.size(); a < N; a++) {
                     TLRPC.DialogFilter newFilter = (TLRPC.DialogFilter) vector.get(a);
                     filtersOrder.add(newFilter.id);
+                    // definition is unchanged. Peer metadata alone cannot render a chat.
+                    DialogFilterPeers.collectIncluded(newFilter, dialogsToLoadMap);
                     int newFlags = 0;
                     if (newFilter.contacts) {
                         newFlags |= MessagesController.DIALOG_FILTER_FLAG_CONTACTS;
@@ -3530,6 +3533,8 @@ public class MessagesStorage extends BaseController {
                     }
                 }
 
+                dialogsToLoad.clear();
+                dialogsToLoad.addAll(dialogsToLoadMap.keySet());
                 TLRPC.messages_Dialogs dialogs;
                 if (!dialogsToLoad.isEmpty()) {
                     dialogs = loadDialogsByIds(TextUtils.join(",", dialogsToLoad), usersToLoad, chatsToLoad, new ArrayList<>());
@@ -3618,7 +3623,8 @@ public class MessagesStorage extends BaseController {
             });
             saveDialogFiltersOrderInternal();
         }
-        int remote = anythingChanged ? 1 : 2;
+        // An unchanged folder may still have newly hydrated dialogs to publish.
+        int remote = anythingChanged || !pinnedDialogs.dialogs.isEmpty() ? 1 : 2;
         calcUnreadCounters(true);
         getMessagesController().processLoadedDialogFilters(new ArrayList<>(dialogFilters), pinnedDialogs, pinnedRemoteDialogs, users, chats, null, remote, onDone);
     }

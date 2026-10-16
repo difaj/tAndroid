@@ -2246,7 +2246,16 @@ public class MessagesController extends BaseController implements NotificationCe
                     dialogFiltersLoaded = true;
                     getNotificationCenter().postNotificationName(NotificationCenter.dialogFiltersUpdated);
                     if (remote == 0) {
-                        loadRemoteFilters(false);
+                        boolean missingDialogs = false;
+                        for (DialogFilter filter : filters) {
+                            if (DialogFilterPeers.hasMissing(filter.alwaysShow,
+                                    id -> dialogs_dict.get(id) != null || new_dialogs_dict.get(id) != null)) {
+                                missingDialogs = true;
+                                break;
+                            }
+                        }
+                        // Repair old partial caches even if filtersLoaded was persisted.
+                        loadRemoteFilters(missingDialogs);
                     }
 
                     if (pinnedRemoteDialogs != null && !pinnedRemoteDialogs.dialogs.isEmpty()) {
@@ -2440,6 +2449,7 @@ public class MessagesController extends BaseController implements NotificationCe
         if (loadingRemoteFilters || !getUserConfig().isClientActivated() || !force && getUserConfig().filtersLoaded) {
             return;
         }
+        loadingRemoteFilters = true;
         if (force) {
             getUserConfig().filtersLoaded = false;
             getUserConfig().saveConfig(false);

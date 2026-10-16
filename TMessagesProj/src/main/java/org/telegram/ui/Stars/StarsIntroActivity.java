@@ -3346,6 +3346,20 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
         return ssb;
     }
 
+    public static SpannableStringBuilder replaceWhiteGram(CharSequence cs, float scale) {
+        final SpannableStringBuilder text = replaceStars(false, cs);
+        if (text == null) return null;
+        for (ColoredImageSpan old : text.getSpans(0, text.length(), ColoredImageSpan.class)) {
+            final int start = text.getSpanStart(old);
+            final int end = text.getSpanEnd(old);
+            text.removeSpan(old);
+            final ColoredImageSpan gram = new ColoredImageSpan(R.drawable.mini_gram_14);
+            gram.setScale(scale, scale);
+            text.setSpan(gram, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        return text;
+    }
+
     public static SpannableStringBuilder replaceDiamond(CharSequence cs) {
         return replaceDiamond(cs, 0.9f, null, 0, 0, 1.0f);
     }

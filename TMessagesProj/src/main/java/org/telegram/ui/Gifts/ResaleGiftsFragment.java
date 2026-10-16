@@ -1002,6 +1002,27 @@ public class ResaleGiftsFragment extends BaseFragment implements FactorAnimator.
         }
 
         private boolean starsOnly;
+        private boolean gramsOnly;
+
+        public boolean isGramsOnly() {
+            return gramsOnly;
+        }
+
+        public void setCurrencyFilter(boolean stars, boolean grams) {
+            if (starsOnly != stars || gramsOnly != grams) {
+                starsOnly = stars;
+                gramsOnly = grams;
+                reload();
+            }
+        }
+
+        public boolean isStarsOnly() {
+            return starsOnly;
+        }
+
+        public void setStarsOnly(boolean value) {
+            setCurrencyFilter(value, false);
+        }
 
         private boolean for_craft;
         public ResaleGiftsList forCraft() {
@@ -1088,10 +1109,10 @@ public class ResaleGiftsFragment extends BaseFragment implements FactorAnimator.
                     for (TL_stars.StarGift starGift : r.gifts) {
                         if (starGift instanceof TL_stars.TL_starGiftUnique) {
                             final TL_stars.TL_starGiftUnique gift = (TL_stars.TL_starGiftUnique) starGift;
-                            gifts.add(gift);
+                            if (!gramsOnly || gift.resale_ton_only) gifts.add(gift);
                         }
                     }
-                    endReached = gifts.size() >= totalCount || TextUtils.isEmpty(r.next_offset);
+                    endReached = (!gramsOnly && gifts.size() >= totalCount) || TextUtils.isEmpty(r.next_offset);
                     last_offset = r.next_offset;
                     loading = false;
                     if (r.attributes != null && !r.attributes.isEmpty()) {
@@ -1122,6 +1143,9 @@ public class ResaleGiftsFragment extends BaseFragment implements FactorAnimator.
                     if (onUpdate != null) {
                         onUpdate.run(first);
                     }
+                    // The protocol supports Stars-only requests. For a GRAM-only
+                    // view, continue past pages containing only Stars listings.
+                    if (gramsOnly && gifts.isEmpty() && !endReached) load();
                 }
             }));
         }

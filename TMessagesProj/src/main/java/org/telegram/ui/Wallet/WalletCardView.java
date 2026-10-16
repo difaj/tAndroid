@@ -182,7 +182,7 @@ public class WalletCardView extends FrameLayout implements SensorEventListener {
 
     private void showLoadingCard() {
         showingLoadingCard = true;
-        loadingCard.setVisibility(skinColor == 0 ? VISIBLE : INVISIBLE);
+        loadingCard.setVisibility(VISIBLE);
         loadingFrontRevision = textureView.renderer.nextFrontRevision();
         // Keep TextureView drawing/latching, but cover its stale pose until a
         // fresh frame is available. Alpha zero would stop its draw callbacks.
@@ -261,11 +261,10 @@ public class WalletCardView extends FrameLayout implements SensorEventListener {
         if (skinColor == color) return;
         skinColor = color;
         textureView.renderer.setSkinColor(color);
-        // A skin change only updates the material. Re-entering the loading
-        // state exposes the flat placeholder gem until the next GL frame.
-        if (showingLoadingCard) {
-            loadingCard.setVisibility(color == 0 ? VISIBLE : INVISIBLE);
-        }
+        loadingCard.setSkinColor(color);
+        // Keep the live GL gem during a skin switch. Re-entering the loading
+        // state briefly replaces it with the flat fallback icon.
+        if (showingLoadingCard) loadingCard.setVisibility(VISIBLE);
         invalidate();
     }
 

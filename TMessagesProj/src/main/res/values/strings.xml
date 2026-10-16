@@ -9516,6 +9516,7 @@
     <string name="Gift2PriceUnique">Unique</string>
     <string name="GiftResaleFilterAllListings">All Listings</string>
     <string name="GiftResaleFilterForStarsOnly">For Stars Only</string>
+    <string name="GiftResaleFilterForGramsOnly">For Grams Only</string>
     <string name="Gift2AttributeOriginalDetails">Gifted by %1$s to %2$s on %3$s.</string>
     <string name="Gift2AttributeOriginalDetailsComment">Gifted by %1$s to %2$s on %3$s with the comment: “%4$s”</string>
     <string name="Gift2AttributeOriginalDetailsSelf">Gifted saved by %1$s on %2$s.</string>

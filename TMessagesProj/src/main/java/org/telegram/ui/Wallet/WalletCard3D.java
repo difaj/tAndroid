@@ -107,6 +107,7 @@ final class WalletCard3D {
     ) {
         bodyProgram.bind(mvpMatrix, modelViewMatrix, lightDirectionX, lightDirectionY,
                 lightDirectionZ, cardGradientRotation, qrButtonRightPadding);
+        bodyProgram.setSkinColor(skinColor);
         GLES20.glActiveTexture(GLES20.GL_TEXTURE4);
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, finishLut);
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
@@ -121,36 +122,40 @@ final class WalletCard3D {
                     lightDirectionZ, cardGradientRotation, surfaceWidth, surfaceHeight);
         }
 
-        qrProgram.bind(mvpMatrix, modelViewMatrix, lightDirectionX, lightDirectionY,
-                lightDirectionZ, cardGradientRotation, qrButtonRightPadding);
-        WalletCardQrBounds.compute(mvpMatrix, surfaceWidth, surfaceHeight,
-                (CARD_DESIGN_WIDTH - qrButtonRightPadding - QR_BUTTON_WIDTH) / CARD_DESIGN_WIDTH,
-                QR_BUTTON_TOP / CARD_DESIGN_HEIGHT,
-                (CARD_DESIGN_WIDTH - qrButtonRightPadding) / CARD_DESIGN_WIDTH,
-                QR_BUTTON_BOTTOM / CARD_DESIGN_HEIGHT, qrScissor, uvFootprint);
-        GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
-        GLES20.glScissor(qrScissor[0], qrScissor[1], qrScissor[2], qrScissor[3]);
-        GLES20.glDepthFunc(GLES20.GL_EQUAL);
-        GLES20.glDepthMask(false);
-        drawMesh(frontMesh, qrProgram);
-        GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
-        GLES20.glDepthMask(true);
-        GLES20.glDepthFunc(GLES20.GL_LEQUAL);
+        if (skinColor == 0) {
+            qrProgram.bind(mvpMatrix, modelViewMatrix, lightDirectionX, lightDirectionY,
+                    lightDirectionZ, cardGradientRotation, qrButtonRightPadding);
+            WalletCardQrBounds.compute(mvpMatrix, surfaceWidth, surfaceHeight,
+                    (CARD_DESIGN_WIDTH - qrButtonRightPadding - QR_BUTTON_WIDTH) / CARD_DESIGN_WIDTH,
+                    QR_BUTTON_TOP / CARD_DESIGN_HEIGHT,
+                    (CARD_DESIGN_WIDTH - qrButtonRightPadding) / CARD_DESIGN_WIDTH,
+                    QR_BUTTON_BOTTOM / CARD_DESIGN_HEIGHT, qrScissor, uvFootprint);
+            GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
+            GLES20.glScissor(qrScissor[0], qrScissor[1], qrScissor[2], qrScissor[3]);
+            GLES20.glDepthFunc(GLES20.GL_EQUAL);
+            GLES20.glDepthMask(false);
+            drawMesh(frontMesh, qrProgram);
+            GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+            GLES20.glDepthMask(true);
+            GLES20.glDepthFunc(GLES20.GL_LEQUAL);
+        }
 
-        flecksProgram.bind(mvpMatrix, modelViewMatrix, lightDirectionX, lightDirectionY,
-                lightDirectionZ, cardGradientRotation, qrButtonRightPadding);
-        GLES20.glUniform2f(flecksProgram.flecksPaddingUniform,
-                Math.min(512.0f, uvFootprint[0] * 512.0f * 4.0f + 8.0f),
-                Math.min(512.0f, uvFootprint[1] * 312.5f * 4.0f + 8.0f));
-        GLES20.glEnable(GLES20.GL_POLYGON_OFFSET_FILL);
-        GLES20.glPolygonOffset(1.0f, 2.0f);
-        GLES20.glDepthFunc(GLES20.GL_GREATER);
-        GLES20.glDepthMask(false);
-        flecks.draw(flecksProgram.positionAttribute, flecksProgram.normalAttribute,
-                flecksProgram.flecksRegionAttribute, flecksProgram.flecksCornerAttribute);
-        GLES20.glDisable(GLES20.GL_POLYGON_OFFSET_FILL);
-        GLES20.glDepthMask(true);
-        GLES20.glDepthFunc(GLES20.GL_LEQUAL);
+        if (skinColor == 0) {
+            flecksProgram.bind(mvpMatrix, modelViewMatrix, lightDirectionX, lightDirectionY,
+                    lightDirectionZ, cardGradientRotation, qrButtonRightPadding);
+            GLES20.glUniform2f(flecksProgram.flecksPaddingUniform,
+                    Math.min(512.0f, uvFootprint[0] * 512.0f * 4.0f + 8.0f),
+                    Math.min(512.0f, uvFootprint[1] * 312.5f * 4.0f + 8.0f));
+            GLES20.glEnable(GLES20.GL_POLYGON_OFFSET_FILL);
+            GLES20.glPolygonOffset(1.0f, 2.0f);
+            GLES20.glDepthFunc(GLES20.GL_GREATER);
+            GLES20.glDepthMask(false);
+            flecks.draw(flecksProgram.positionAttribute, flecksProgram.normalAttribute,
+                    flecksProgram.flecksRegionAttribute, flecksProgram.flecksCornerAttribute);
+            GLES20.glDisable(GLES20.GL_POLYGON_OFFSET_FILL);
+            GLES20.glDepthMask(true);
+            GLES20.glDepthFunc(GLES20.GL_LEQUAL);
+        }
 
         // The default face is translucent here; a gift face is opaque and must
         // be drawn before its diamond or it would cover the original gem.

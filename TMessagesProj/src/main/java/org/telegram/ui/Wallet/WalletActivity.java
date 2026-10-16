@@ -388,7 +388,7 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
             o.add(R.drawable.msg_gift_premium, getString(R.string.WalletSkins), () -> {
                 o.dismiss();
                 final StarsController.GiftsList skins = getCardSkinGifts();
-                new WalletSkinsSheet(WalletActivity.this, skins, selectedCardSkinId,
+                new WalletSkinsSheet(WalletActivity.this, skins, selectedCardSkinId, cardSkinGift,
                         WalletActivity.this::selectCardSkin).show();
             });
             o.add(R.drawable.wallet_lock, getString(R.string.Passcode), () -> {

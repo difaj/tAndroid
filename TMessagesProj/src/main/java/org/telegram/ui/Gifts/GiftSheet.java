@@ -1676,8 +1676,15 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                 priceView.setPadding(dp(8), 0, dp(10), 0);
                 final long stars = gift.getResellStars();
                 final int backgroundColor = Theme.blendOver(backdrop.center_color | 0xFF000000, Theme.multAlpha(backdrop.pattern_color | 0xFF000000, .55f));
-                priceView.setText(StarsIntroActivity.replaceStars("XTR " + LocaleController.formatNumber(stars, ',')));
-                priceBackground.setBackground(new StarsBackground(0x70FFFFFF, backgroundColor));
+                if (gift.resale_ton_only) {
+                    priceView.setText(StarsIntroActivity.replaceStars(true, "⭐" +
+                            gift.getResellAmount(AmountUtils.Currency.TON).asFormatString()));
+                } else {
+                    priceView.setText(StarsIntroActivity.replaceStars("XTR " + LocaleController.formatNumber(stars, ',')));
+                }
+                priceBackground.setBackground(gift.resale_ton_only
+                        ? Theme.createRoundRectDrawable(dp(13), backgroundColor)
+                        : new StarsBackground(0x70FFFFFF, backgroundColor));
                 priceView.setTextColor(0xFFFFFFFF);
 
                 tonOnlySaleView.setColorFilter(0xFFFFFFFF);
@@ -1733,6 +1740,14 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             updateRibbonText();
 
             return false;
+        }
+
+        public void setWhiteGramPriceIcon(boolean whiteGramPriceIcon) {
+            if (!whiteGramPriceIcon || gift == null || !inResalePage || !gift.resale_ton_only) {
+                return;
+            }
+            priceView.setText(StarsIntroActivity.replaceWhiteGram("⭐" +
+                    gift.getResellAmount(AmountUtils.Currency.TON).asFormatString(), 1.0f));
         }
 
         public long getGiftId() {
@@ -2041,6 +2056,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                 } else if (item.object instanceof TL_stars.StarGift) {
                     TL_stars.StarGift gift = (TL_stars.StarGift) item.object;
                     animated = cell.setStarsGift(gift, item.checked, item.object2 instanceof Boolean ? (Boolean) item.object2 : false, item.accent, item.red, item.locked);
+                    cell.setWhiteGramPriceIcon(item.include);
                 } else if (item.object instanceof TL_stars.SavedStarGift) {
                     TL_stars.SavedStarGift gift = (TL_stars.SavedStarGift) item.object;
                     animated = cell.setStarsGift(gift, item.accent, item.red);
@@ -2073,6 +2089,13 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                 item.red = inResalePage;
                 item.accent = allowResaleInGifts;
                 item.locked = inCrafting;
+                return item;
+            }
+
+            public static UItem asStarGift(int tab, TL_stars.StarGift gift, boolean mine, boolean includeUpgradeInPrice, boolean allowResaleInGifts, boolean inResalePage, boolean inCrafting, boolean whiteGramPriceIcon) {
+                final UItem item = asStarGift(tab, gift, mine, includeUpgradeInPrice,
+                        allowResaleInGifts, inResalePage, inCrafting);
+                item.include = whiteGramPriceIcon;
                 return item;
             }
 

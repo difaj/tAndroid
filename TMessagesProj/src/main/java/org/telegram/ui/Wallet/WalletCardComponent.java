@@ -87,7 +87,6 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
     private Bitmap engravingBitmap;
     private TL_stars.TL_starGiftUnique skinGift;
     private FrameLayout skinLayer;
-    private SkinEngravingView skinEngravingView;
     private int skinTextColor = Color.WHITE;
     private int skinBackgroundColor;
     private OnClickListener cardClickListener;
@@ -274,9 +273,6 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
             return;
         }
         cardNumber = formattedNumber;
-        if (skinEngravingView != null) {
-            skinEngravingView.setAddress(formattedNumber);
-        }
         setEngravingBitmap(createCardNumberEngraving(getContext(), formattedNumber));
     }
 
@@ -361,9 +357,6 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
         for (int i = 0; i < childCount; i++) {
             frontFace.addView(children[i], layoutParams[i]);
         }
-        if (skinEngravingView != null) {
-            skinEngravingView.setVisibility(use2D ? VISIBLE : GONE);
-        }
     }
 
     public void setCardOnClickListener(OnClickListener listener) {
@@ -383,7 +376,7 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
     public void setEngravingBitmap(Bitmap bitmap) {
         engravingBitmap = bitmap;
         if (cardView instanceof WalletCard2DView) {
-            ((WalletCard2DView) cardView).setEngravingBitmap(skinGift == null ? bitmap : null);
+            ((WalletCard2DView) cardView).setEngravingBitmap(bitmap);
         } else {
             ((WalletCardView) cardView).setEngravingBitmap(bitmap);
         }
@@ -395,7 +388,6 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
         if (skinLayer != null) {
             frontFace.removeView(skinLayer);
             skinLayer = null;
-            skinEngravingView = null;
         }
         skinGift = gift;
         final TL_stars.starGiftAttributeBackdrop backdrop = gift == null ? null :
@@ -416,6 +408,8 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
         usdBalanceView.getDrawable().setShadowLayer(0, 0, 0, 0);
         if (cardView instanceof WalletCardView) {
             ((WalletCardView) cardView).setSkinColor(skinBackgroundColor);
+        } else if (cardView instanceof WalletCard2DView) {
+            ((WalletCard2DView) cardView).setSkinColor(skinBackgroundColor);
         }
 
         if (gift != null) {
@@ -424,12 +418,6 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
             skinLayer.setBackground(new SkinBackground(skinLayer, currentAccount, backdrop,
                     StarsController.findAttribute(gift.attributes, TL_stars.starGiftAttributePattern.class)));
             frontFace.addView(skinLayer, 0, LayoutHelper.createFrame(336, 205, Gravity.LEFT | Gravity.TOP));
-
-            skinEngravingView = new SkinEngravingView(getContext());
-            skinEngravingView.setAddress(cardNumber);
-            skinEngravingView.setColor(skinTextColor);
-            skinEngravingView.setVisibility(use2D ? VISIBLE : GONE);
-            skinLayer.addView(skinEngravingView, LayoutHelper.createFrame(336, 205, Gravity.LEFT | Gravity.TOP));
 
             final FrameLayout modelTile = new FrameLayout(getContext());
             modelTile.setClipChildren(true);
@@ -661,6 +649,8 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
         if (cardView instanceof WalletCardView) {
             ((WalletCardView) cardView).setDiamondAlpha(diamondOnCard ? 1f - balanceTransitionProgress : 0f);
             ((WalletCardView) cardView).setSkinColor(skinBackgroundColor);
+        } else if (cardView instanceof WalletCard2DView) {
+            ((WalletCard2DView) cardView).setSkinColor(skinBackgroundColor);
         }
         cardView.setOnClickListener(cardClickListener);
         addView(cardView, 0, LayoutHelper.createFrame(
@@ -672,18 +662,15 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
         }
     }
 
-    /** A flat gift color with the symbol repeated in offset rows, like a printed card. */
+    /** The gift's translucent printed symbols; the tinted metal remains visible underneath. */
     private static class SkinBackground extends Drawable {
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final RectF rect = new RectF();
         private final Path clip = new Path();
         private final AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable pattern;
-        private final int backgroundColor;
         private final boolean hasPattern;
 
         SkinBackground(View view, int account, TL_stars.starGiftAttributeBackdrop backdrop,
                        TL_stars.starGiftAttributePattern attribute) {
-            backgroundColor = colorForBackdrop(backdrop);
             hasPattern = attribute != null && attribute.document != null;
             pattern = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable(view, dp(26)) {
                 @Override
@@ -720,8 +707,6 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
         @Override
         public void draw(Canvas canvas) {
             rect.set(getBounds());
-            paint.setColor(backgroundColor);
-            canvas.drawRoundRect(rect, dp(25), dp(25), paint);
             if (!hasPattern) return;
             final int save = canvas.save();
             clip.rewind();
@@ -745,50 +730,6 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
         @Override public void setAlpha(int alpha) { }
         @Override public void setColorFilter(ColorFilter colorFilter) { }
         @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
-    }
-
-    /** Draw the address at the face's native resolution instead of shrinking an
-     * engraving bitmap and blending three filtered copies over the gift. */
-    private static class SkinEngravingView extends View {
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
-        private String address;
-        private int color = Color.WHITE;
-
-        SkinEngravingView(Context context) {
-            super(context);
-            paint.setTypeface(getCardNumberTypeface(context));
-            paint.setTextSize(dp(9.7f));
-            paint.setTextAlign(Paint.Align.CENTER);
-        }
-
-        void setAddress(String address) {
-            this.address = address;
-            invalidate();
-        }
-
-        void setColor(int color) {
-            this.color = color;
-            invalidate();
-        }
-
-        @Override
-        protected void onDraw(Canvas canvas) {
-            if (address == null) return;
-            final int save = canvas.save();
-            canvas.translate(dp(313f), dp(102.5f));
-            canvas.rotate(90f);
-            canvas.scale(CARD_NUMBER_LENGTH_SCALE, 1f);
-            final Paint.FontMetrics metrics = paint.getFontMetrics();
-            final float middleBaselineOffset = -(metrics.ascent + metrics.descent) * 0.5f;
-            final String[] lines = formatCardAddress(address).split("\\n");
-            paint.setColor(color);
-            paint.setAlpha(255);
-            canvas.drawText(lines[0], 0, dp(-5.6f) + middleBaselineOffset, paint);
-            if (lines.length > 1) {
-                canvas.drawText(lines[1], 0, dp(5.6f) + middleBaselineOffset, paint);
-            }
-            canvas.restoreToCount(save);
-        }
     }
 
     private static Bitmap createCardNumberEngraving(Context context, String formattedAddress) {

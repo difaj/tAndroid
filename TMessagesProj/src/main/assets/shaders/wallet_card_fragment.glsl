@@ -29,7 +29,7 @@ out vec4 fragmentColor;
 uniform vec2 uEngravingTexel;
 uniform vec3 uMainLightDirection;
 uniform vec2 uQrCenter;
-#if defined(WALLET_EDGE_PASS) || defined(WALLET_ENGRAVING_PASS)
+#if defined(WALLET_BODY_PASS) || defined(WALLET_EDGE_PASS) || defined(WALLET_ENGRAVING_PASS)
 uniform vec4 uSkinColor;
 #endif
 
@@ -1062,6 +1062,15 @@ void main() {
 
     color = acesToneMap(color * EXPOSURE);
     color = pow(color, vec3(1.0 / 2.2));
+#ifdef WALLET_BODY_PASS
+    if (uSkinColor.a > 0.5) {
+        // Retain the brushed-metal lighting and highlights, changing only its hue.
+        float metalLight = dot(color, vec3(0.2126, 0.7152, 0.0722));
+        vec3 tintedMetal = uSkinColor.rgb * (0.42 + metalLight * 0.98)
+                + vec3(pow(metalLight, 3.0) * 0.30);
+        color = clamp(tintedMetal, 0.0, 1.0);
+    }
+#endif
 #ifdef WALLET_EDGE_PASS
     // Only the side material follows the selected gift's card color.
     float materialLight = dot(color, vec3(0.2126, 0.7152, 0.0722));

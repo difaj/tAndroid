@@ -231,6 +231,11 @@ public class WalletCard2DView extends FrameLayout implements SensorEventListener
         cardSurface.setCardIcon(drawableResId);
     }
 
+    void setSkinColor(int color) {
+        gradientSurface.setSkinColor(color);
+        cardSurface.setSkinColor(color);
+    }
+
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int width = MeasureSpec.getSize(widthMeasureSpec);
@@ -514,6 +519,7 @@ public class WalletCard2DView extends FrameLayout implements SensorEventListener
         private SweepGradient gradient;
         private float gradientCenterX;
         private float gradientCenterY;
+        private int skinColor;
 
         GradientSurface(Context context) {
             super(context);
@@ -548,30 +554,38 @@ public class WalletCard2DView extends FrameLayout implements SensorEventListener
             invalidate();
         }
 
+        void setSkinColor(int color) {
+            if (skinColor == color) return;
+            skinColor = color;
+            updateGradient();
+        }
+
+        private void updateGradient() {
+            if (getWidth() == 0 || getHeight() == 0) return;
+            final int base = skinColor == 0 ? BASE_BLUE : skinColor;
+            final int highlight = skinColor == 0 ? LIGHT_BLUE : Color.rgb(
+                    Math.min(255, (int) (Color.red(base) * 0.62f + 255 * 0.38f)),
+                    Math.min(255, (int) (Color.green(base) * 0.62f + 255 * 0.38f)),
+                    Math.min(255, (int) (Color.blue(base) * 0.62f + 255 * 0.38f)));
+            gradient = new SweepGradient(gradientCenterX, gradientCenterY,
+                    new int[]{base, highlight, base, highlight, base},
+                    new float[]{0.0f, 0.25f, 0.5f, 0.75f, 1.0f});
+            gradient.setLocalMatrix(gradientMatrix);
+            backgroundPaint.setShader(gradient);
+            invalidate();
+        }
+
         @Override
         protected void onSizeChanged(int w, int h, int oldw, int oldh) {
             super.onSizeChanged(w, h, oldw, oldh);
             gradientCenterX = w * 0.5f;
             gradientCenterY = h * 0.5f;
-            gradient = new SweepGradient(
-                    gradientCenterX,
-                    gradientCenterY,
-                    new int[]{
-                            BASE_BLUE,
-                            LIGHT_BLUE,
-                            BASE_BLUE,
-                            LIGHT_BLUE,
-                            BASE_BLUE
-                    },
-                    new float[]{0.0f, 0.25f, 0.5f, 0.75f, 1.0f}
-            );
             gradientMatrix.setRotate(
                     CSS_GRADIENT_ANGLE - 90.0f,
                     gradientCenterX,
                     gradientCenterY
             );
-            gradient.setLocalMatrix(gradientMatrix);
-            backgroundPaint.setShader(gradient);
+            updateGradient();
             invalidateOutline();
         }
 
@@ -623,6 +637,7 @@ public class WalletCard2DView extends FrameLayout implements SensorEventListener
         private SweepGradient qrAngularGradient;
         private float rotationX;
         private float rotationY;
+        private int skinColor;
 
         CardSurface(Context context, int cardIconResId, int qrButtonRightPadding) {
             super(context);
@@ -669,6 +684,20 @@ public class WalletCard2DView extends FrameLayout implements SensorEventListener
         void setEngravingBitmap(Bitmap bitmap) {
             // The component and GL thread may still be using the previous bitmap.
             engravingBitmap = bitmap;
+            invalidate();
+        }
+
+        void setSkinColor(int color) {
+            if (skinColor == color) return;
+            skinColor = color;
+            final int face = color == 0 ? 0xFF0071CC : Color.rgb(
+                    Math.min(255, Math.round(Color.red(color) * .22f + 255 * .78f)),
+                    Math.min(255, Math.round(Color.green(color) * .22f + 255 * .78f)),
+                    Math.min(255, Math.round(Color.blue(color) * .22f + 255 * .78f)));
+            engravingPaint.setColorFilter(new PorterDuffColorFilter(face, PorterDuff.Mode.SRC_IN));
+            engravingHighlightPaint.setColorFilter(new PorterDuffColorFilter(
+                    color == 0 ? Color.argb(15, 255, 255, 255) : Color.argb(105, 0, 0, 0),
+                    PorterDuff.Mode.SRC_IN));
             invalidate();
         }
 
@@ -746,10 +775,12 @@ public class WalletCard2DView extends FrameLayout implements SensorEventListener
             canvas.restoreToCount(shadowSave);
             canvas.restoreToCount(backgroundSave);
 
-            int flecksSave = canvas.save();
-            canvas.clipPath(cardPath);
-            drawFlecks(canvas);
-            canvas.restoreToCount(flecksSave);
+            if (skinColor == 0) {
+                int flecksSave = canvas.save();
+                canvas.clipPath(cardPath);
+                drawFlecks(canvas);
+                canvas.restoreToCount(flecksSave);
+            }
 
             if (engravingBitmap != null && !engravingBitmap.isRecycled()) {
                 int save = canvas.save();
@@ -765,7 +796,7 @@ public class WalletCard2DView extends FrameLayout implements SensorEventListener
                 canvas.drawBitmap(engravingBitmap, null, bounds, engravingPaint);
             }
 
-            drawQrButton(canvas);
+            if (skinColor == 0) drawQrButton(canvas);
         }
 
         private void drawFlecks(Canvas canvas) {

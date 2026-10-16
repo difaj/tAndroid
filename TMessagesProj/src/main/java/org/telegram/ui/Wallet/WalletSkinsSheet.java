@@ -90,6 +90,7 @@ public class WalletSkinsSheet extends BottomSheetWithRecyclerListView implements
     private ButtonWithCounterView actionButton;
     private UniversalAdapter adapter;
     private int previewReservedHeight;
+    private WalletStickerEditor stickerEditor;
 
     public WalletSkinsSheet(BaseFragment fragment, StarsController.GiftsList gifts,
                             long selectedGiftId, TL_stars.TL_starGiftUnique selectedGift,
@@ -157,6 +158,32 @@ public class WalletSkinsSheet extends BottomSheetWithRecyclerListView implements
         previewCard.listen(currentAccount, wallet);
         previewCard.setSkinGift(previewGift);
         previewCard.update(wallet);
+        final FrameLayout editorRoot = (FrameLayout) pinnedPreview.getParent();
+        final TextView removeSticker = new TextView(getContext());
+        removeSticker.setText(getString(R.string.Delete));
+        removeSticker.setTextSize(16);
+        removeSticker.setTextColor(Color.WHITE);
+        removeSticker.setGravity(Gravity.CENTER);
+        removeSticker.setBackground(Theme.createRoundRectDrawable(dp(24), 0xFFE74B45));
+        removeSticker.setVisibility(View.INVISIBLE);
+        editorRoot.addView(removeSticker, LayoutHelper.createFrame(140, 48,
+                Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 0, 0, 0, 16));
+        stickerEditor = new WalletStickerEditor(getContext(), previewCard, editorRoot,
+                removeSticker, actionButton, currentAccount, () -> editorRoot.invalidate());
+        stickerEditor.setSkinGift(previewGift);
+        pinnedPreview.addView(stickerEditor, LayoutHelper.createFrame(
+                LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        editorRoot.setOnDragListener((v, event) -> stickerEditor.onRootDrag(event));
+        recyclerListView.setOnItemLongClickListener((RecyclerListView.OnItemLongClickListener) (view, position) -> {
+            final UItem item = adapter == null ? null : adapter.getItem(position - 1);
+            if (selectedCollection != null || item == null
+                    || !(item.object instanceof TL_stars.SavedStarGift)
+                    || !(view instanceof PeerColorActivity.GiftCell)) return false;
+            final TL_stars.SavedStarGift saved = (TL_stars.SavedStarGift) item.object;
+            return saved.gift instanceof TL_stars.TL_starGiftUnique
+                    && stickerEditor.startGiftDrag(view, ((PeerColorActivity.GiftCell) view).imageView,
+                    (TL_stars.TL_starGiftUnique) saved.gift);
+        });
         refreshCollections();
         updatePinnedControls();
         adapter.update(false);
@@ -203,6 +230,25 @@ public class WalletSkinsSheet extends BottomSheetWithRecyclerListView implements
 
     @Override
     protected void onPreDraw(Canvas canvas, int top, float progressToFullView) {
+        if (stickerEditor != null) {
+            for (int i = 0; i < recyclerListView.getChildCount(); i++) {
+                final View view = recyclerListView.getChildAt(i);
+                if (!(view instanceof PeerColorActivity.GiftCell)) continue;
+                final int position = recyclerListView.getChildAdapterPosition(view);
+                final UItem item = adapter == null ? null : adapter.getItem(position - 1);
+                if (item == null || !(item.object instanceof TL_stars.SavedStarGift)) continue;
+                final TL_stars.SavedStarGift saved = (TL_stars.SavedStarGift) item.object;
+                final org.telegram.ui.Components.BackupImageView image = ((PeerColorActivity.GiftCell) view).imageView;
+                final boolean used = stickerEditor.containsGift(saved.gift.id) || stickerEditor.isGiftLifted(saved.gift.id);
+                final int visibility = used ? View.INVISIBLE : View.VISIBLE;
+                if (image.getVisibility() != visibility) {
+                    image.setVisibility(visibility);
+                    image.getImageReceiver().setAllowStartAnimation(!used);
+                    if (used) image.getImageReceiver().stopAnimation();
+                    else image.getImageReceiver().startAnimation();
+                }
+            }
+        }
         if (pinnedPreview != null && actionBar != null) {
             final float y = actionBar.getY() + actionBar.getHeight() + dp(8);
             if (pinnedPreview.getTranslationY() != y) pinnedPreview.setTranslationY(y);
@@ -245,6 +291,7 @@ public class WalletSkinsSheet extends BottomSheetWithRecyclerListView implements
         previewGift = gift;
         resaleGift = resale;
         if (previewCard != null) previewCard.setSkinGift(gift);
+        if (stickerEditor != null) stickerEditor.setSkinGift(gift);
         updateActionButton();
         adapter.update(false);
     }
@@ -255,6 +302,7 @@ public class WalletSkinsSheet extends BottomSheetWithRecyclerListView implements
             if (saved.gift instanceof TL_stars.TL_starGiftUnique && saved.gift.id == selectedGiftId) {
                 previewGift = (TL_stars.TL_starGiftUnique) saved.gift;
                 if (previewCard != null) previewCard.setSkinGift(previewGift);
+                if (stickerEditor != null) stickerEditor.setSkinGift(previewGift);
                 return;
             }
         }
@@ -280,6 +328,7 @@ public class WalletSkinsSheet extends BottomSheetWithRecyclerListView implements
     private void applyOrBuy() {
         if (actionButton == null || actionButton.isLoading()) return;
         if (resaleGift == null) {
+            if (stickerEditor != null) WalletCardStickers.save(currentAccount, stickerEditor.stickers);
             whenSelected.run(previewGift);
             dismiss();
             return;
@@ -305,6 +354,7 @@ public class WalletSkinsSheet extends BottomSheetWithRecyclerListView implements
                     progress.end();
                     if (success) {
                         gifts.invalidate(true);
+                        if (stickerEditor != null) WalletCardStickers.save(currentAccount, stickerEditor.stickers);
                         whenSelected.run(gift);
                         dismiss();
                     }

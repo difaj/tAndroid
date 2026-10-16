@@ -616,6 +616,7 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
         };
         card.setDiamondOnCard(true);
         card.setSkinGift(cardSkinGift);
+        card.reloadStickers(currentAccount);
         if (selectedCardSkinId != 0 && cardSkinGift == null) card.setAlpha(0f);
         card.setCardOnClickListener(v -> openWalletQRAlert(getContext(), currentAccount, getResourceProvider(), cardSkinGift));
         listView.addEdgeEffectListener(cardOverscrollListener);
@@ -3368,6 +3369,7 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
         saveCardSkinSelection(gift);
         if (card != null) {
             card.setSkinGift(gift);
+            card.reloadStickers();
             card.setAlpha(1f);
             updateBalanceTransitionColors(balanceTransitionProgress);
         }

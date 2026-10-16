@@ -13,6 +13,8 @@ import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.PixelFormat;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
@@ -37,6 +39,8 @@ import java.math.RoundingMode;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.Locale;
+import java.util.ArrayList;
+import java.util.HashMap;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.BillingController;
@@ -87,6 +91,9 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
     private Bitmap engravingBitmap;
     private TL_stars.TL_starGiftUnique skinGift;
     private FrameLayout skinLayer;
+    private FrameLayout stickerLayer;
+    private final HashMap<Long, WalletStickerImage> stickerImages = new HashMap<>();
+    private ArrayList<WalletCardStickers.Sticker> stickers = new ArrayList<>();
     private int skinTextColor = Color.WHITE;
     private int skinBackgroundColor;
     private OnClickListener cardClickListener;
@@ -442,6 +449,14 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
             }
         }
         setEngravingBitmap(engravingBitmap);
+        if (gift != null) {
+            for (WalletCardStickers.Sticker sticker : stickers) {
+                if (sticker.gift.id == gift.id) {
+                    setStickers(stickers);
+                    break;
+                }
+            }
+        }
         if (wallet != null && wallet.isReady()) {
             setWalletBalance(wallet, wallet.getBalance(), false);
         }
@@ -449,6 +464,103 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
 
     public int getSkinTextColor() {
         return skinTextColor;
+    }
+
+    public void reloadStickers() {
+        setStickers(WalletCardStickers.load(currentAccount));
+    }
+
+    public void reloadStickers(int account) {
+        currentAccount = account;
+        reloadStickers();
+    }
+
+    View getStickerImage(int index) {
+        return index >= 0 && index < stickers.size()
+                ? stickerImages.get(stickers.get(index).gift.id) : null;
+    }
+
+    void setStickers(ArrayList<WalletCardStickers.Sticker> value) {
+        final ArrayList<WalletCardStickers.Sticker> filtered = new ArrayList<>();
+        for (WalletCardStickers.Sticker sticker : value) {
+            if (skinGift == null || sticker.gift.id != skinGift.id) filtered.add(sticker);
+        }
+        stickers = filtered;
+        if (stickerLayer == null) {
+            stickerLayer = new FrameLayout(getContext()) {
+                private final Paint addressMask = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+                private final RectF maskBounds = new RectF();
+                { addressMask.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_OUT)); }
+                @Override protected void dispatchDraw(Canvas canvas) {
+                    if (getChildCount() == 0) return;
+                    boolean crossesAddress = false;
+                    for (WalletCardStickers.Sticker sticker : stickers) {
+                        if (sticker.x + sticker.size * .72f > 295) { crossesAddress = true; break; }
+                    }
+                    if (!crossesAddress || engravingBitmap == null || engravingBitmap.isRecycled()) {
+                        super.dispatchDraw(canvas);
+                        return;
+                    }
+                    // The engraved address is drawn by the metal shader/background.
+                    // Knock its glyphs out of decorations so that it stays in front.
+                    final int save = canvas.saveLayer(0, 0, getWidth(), getHeight(), null);
+                    super.dispatchDraw(canvas);
+                    if (engravingBitmap != null && !engravingBitmap.isRecycled()) {
+                        maskBounds.set(0, 0, getWidth(), getHeight());
+                        canvas.drawBitmap(engravingBitmap, null, maskBounds, addressMask);
+                    }
+                    canvas.restoreToCount(save);
+                }
+            };
+            stickerLayer.setClipChildren(false);
+            // Pattern first, decorations next, typography last.
+            frontFace.addView(stickerLayer, skinLayer == null ? 0 : 1,
+                    LayoutHelper.createFrame(336, 205, Gravity.TOP | Gravity.LEFT));
+        }
+        final HashMap<Long, WalletStickerImage> unused = new HashMap<>(stickerImages);
+        for (WalletCardStickers.Sticker sticker : stickers) {
+            final TLRPC.Document document = sticker.gift.getDocument();
+            if (document == null) continue;
+            WalletStickerImage image = stickerImages.get(sticker.gift.id);
+            unused.remove(sticker.gift.id);
+            if (image == null) {
+                image = new WalletStickerImage(getContext(), document.id);
+                image.getImageReceiver().setAllowStartAnimation(false);
+                final TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(document.thumbs, dp(100));
+                image.setImage(ImageLocation.getForDocument(document), "80_80_nolimit_pcache",
+                        ImageLocation.getForDocument(thumb, document), "80_80_nolimit_pcache",
+                        DocumentObject.getSvgThumb(document, Theme.key_windowBackgroundGray, .3f), sticker.gift);
+                stickerLayer.addView(image, LayoutHelper.createFrame(80, 80, Gravity.TOP | Gravity.LEFT));
+                stickerImages.put(sticker.gift.id, image);
+            }
+            applyStickerTransform(image, sticker);
+        }
+        for (Long id : unused.keySet()) {
+            stickerLayer.removeView(stickerImages.remove(id));
+        }
+    }
+
+    void updateStickerTransform(int index, WalletCardStickers.Sticker sticker) {
+        final View image = stickerImages.get(sticker.gift.id);
+        if (image == null) return;
+        applyStickerTransform(image, sticker);
+        if (index < stickers.size()) stickers.set(index, sticker);
+    }
+
+    private void applyStickerTransform(View image, WalletCardStickers.Sticker sticker) {
+        image.setTranslationX(dp(sticker.x - 40));
+        image.setTranslationY(dp(sticker.y - 40));
+        image.setScaleX(sticker.size / 80f);
+        image.setScaleY(sticker.size / 80f);
+        image.setRotation(sticker.rotation);
+    }
+
+    /** Text is above the sticker layer; only the card edges constrain placement. */
+    boolean canPlaceSticker(WalletCardStickers.Sticker sticker) {
+        final double angle = Math.toRadians(sticker.rotation);
+        final float half = sticker.size * (float) (Math.abs(Math.cos(angle)) + Math.abs(Math.sin(angle))) / 2;
+        final RectF bounds = new RectF(sticker.x - half, sticker.y - half, sticker.x + half, sticker.y + half);
+        return bounds.left >= 8 && bounds.top >= 8 && bounds.right <= 328 && bounds.bottom <= 197;
     }
 
     /** Adds a vertical tilt in degrees to the live sensor and drag rotation. */
@@ -531,6 +643,7 @@ public class WalletCardComponent extends FrameLayout implements NotificationCent
             NotificationCenter.getInstance(this.currentAccount).removeObserver(this, NotificationCenter.walletUpdate);
         this.currentAccount = currentAccount;
         this.wallet = wallet;
+        reloadStickers();
         if (isAttachedToWindow() && this.wallet != null)
             NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.walletUpdate);
     }

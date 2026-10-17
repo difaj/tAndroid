@@ -411,6 +411,7 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
         return tab;
     }
 
+
     public static GlassTabView createAvatar(Context context, Theme.ResourcesProvider resourcesProvider, int currentAccount, @StringRes int stringRes) {
         GlassTabView tab = new GlassTabView(context);
         tab.textView.setText(LocaleController.getString(stringRes));

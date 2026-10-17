@@ -72,7 +72,7 @@ public class TLRPC {
     public static final int MESSAGE_FLAG_HAS_BOT_ID         = 0x00000800;
     public static final int MESSAGE_FLAG_EDITED             = 0x00008000;
 
-    public static final int LAYER = 231;
+    public static final int LAYER = 232;
 
     public static abstract class EmailVerifyPurpose extends TLObject {
 
@@ -24724,6 +24724,8 @@ public class TLRPC {
                     return new TL_messageActionPaymentSent_layer140();
                 case TL_messageActionEmpty.constructor:
                     return new TL_messageActionEmpty();
+                case org.telegram.tgnet.tl.TL_layer232.NoPaidMessagesTokenUsed.constructor:
+                    return new org.telegram.tgnet.tl.TL_layer232.NoPaidMessagesTokenUsed();
                 case TL_messageActionGameScore.constructor:
                     return new TL_messageActionGameScore();
                 case TL_messageActionGroupCallScheduled.constructor:
@@ -27669,6 +27671,7 @@ public class TLRPC {
                     result = new TL_messageReplyStoryHeader_layer174();
                     break;
                 case TL_messageReplyHeader.constructor:
+                case 0x1b97dd66:
                     result = new TL_messageReplyHeader();
                     break;
                 case TL_messageReplyHeader_layer223.constructor:
@@ -27723,7 +27726,8 @@ public class TLRPC {
     }
 
     public static class TL_messageReplyHeader extends MessageReplyHeader {
-        public static final int constructor = 0x1B97DD66;
+        public static final int constructor = 0xddb5ab75;
+        public ArrayList<TL_iv.RichText> quote_rich;
         public void readParams(InputSerializedData stream, boolean exception) {
             flags = stream.readInt32(exception);
             reply_to_scheduled = hasFlag(flags, FLAG_2);
@@ -27760,6 +27764,7 @@ public class TLRPC {
             if (hasFlag(flags, FLAG_12)) {
                 poll_option = stream.readByteArray(exception);
             }
+            if (hasFlag(flags, FLAG_14)) quote_rich = Vector.deserialize(stream, TL_iv.RichText::TLdeserialize, exception);
         }
 
         public void serializeToStream(OutputSerializedData stream) {
@@ -27769,6 +27774,7 @@ public class TLRPC {
             flags = setFlag(flags, FLAG_9, quote);
             flags = setFlag(flags, FLAG_12, poll_option != null);
             flags = setFlag(flags, FLAG_13, reply_to_ephemeral);
+            flags = setFlag(flags, FLAG_14, quote_rich != null);
             stream.writeInt32(flags);
             if (hasFlag(flags, FLAG_4)) {
                 stream.writeInt32(reply_to_msg_id);
@@ -27800,6 +27806,7 @@ public class TLRPC {
             if (hasFlag(flags, FLAG_12)) {
                 stream.writeByteArray(poll_option);
             }
+            if (hasFlag(flags, FLAG_14)) Vector.serialize(stream, quote_rich);
         }
     }
 
@@ -39019,6 +39026,8 @@ public class TLRPC {
                     return new TL_channel_layer104();
                 case TL_channel.constructor:
                     return new TL_channel();
+                case org.telegram.tgnet.tl.TL_layer232.Channel.constructor:
+                    return new org.telegram.tgnet.tl.TL_layer232.Channel();
                 case TL_channel_layer227.constructor:
                     return new TL_channel_layer227();
                 case TL_community.constructor:
@@ -39448,6 +39457,8 @@ public class TLRPC {
     public static class TL_channel extends Chat {
         public static final int constructor = 0xD49F34C6;
 
+        protected int getConstructor() { return constructor; }
+
         public void readParams(InputSerializedData stream, boolean exception) {
             flags = stream.readInt32(exception);
             creator = hasFlag(flags, FLAG_0);
@@ -39540,7 +39551,7 @@ public class TLRPC {
         }
 
         public void serializeToStream(OutputSerializedData stream) {
-            stream.writeInt32(constructor);
+            stream.writeInt32(getConstructor());
             flags = setFlag(flags, FLAG_0, creator);
             flags = setFlag(flags, FLAG_2, left);
             flags = setFlag(flags, FLAG_5, broadcast);
@@ -44424,6 +44435,8 @@ public class TLRPC {
 
         private static UserFull fromConstructor(int constructor) {
             switch (constructor) {
+                case org.telegram.tgnet.tl.TL_layer232.UserFull.constructor:
+                    return new org.telegram.tgnet.tl.TL_layer232.UserFull();
                 case TL_userFull.constructor:
                     return new TL_userFull();
                 case TL_userFull_layer230.constructor:
@@ -56328,7 +56341,7 @@ public class TLRPC {
     }
 
     public static class TL_channels_joinChannel extends TLMethod<ChatInviteJoinResult> {
-        public static final int constructor = 0x24b524c5;
+        public static final int constructor = 0x7f6a1e22;
 
         public InputChannel channel;
 
@@ -63773,6 +63786,7 @@ public class TLRPC {
                 case TL_inputReplyToMonoForum.constructor:
                     return new TL_inputReplyToMonoForum();
                 case TL_inputReplyToMessage.constructor:
+                case 0x3bd4b7c2:
                     return new TL_inputReplyToMessage();
                 case TL_inputReplyToMessage_layer223.constructor:
                     return new TL_inputReplyToMessage_layer223();
@@ -63810,7 +63824,8 @@ public class TLRPC {
     }
 
     public static class TL_inputReplyToMessage extends InputReplyTo {
-        public static final int constructor = 0x3BD4B7C2;
+        public static final int constructor = 0x75c1ad70;
+        public ArrayList<TL_iv.RichText> quote_rich;
 
         public void readParams(InputSerializedData stream, boolean exception) {
             flags = stream.readInt32(exception);
@@ -63839,6 +63854,7 @@ public class TLRPC {
             if (hasFlag(flags, FLAG_7)) {
                 poll_option = stream.readByteArray(exception);
             }
+            if (hasFlag(flags, FLAG_8)) quote_rich = Vector.deserialize(stream, TL_iv.RichText::TLdeserialize, exception);
         }
 
         public void serializeToStream(OutputSerializedData stream) {
@@ -63847,6 +63863,7 @@ public class TLRPC {
             flags = setFlag(flags, FLAG_5, monoforum_peer_id != null);
             flags = setFlag(flags, FLAG_7, poll_option != null);
 
+            flags = setFlag(flags, FLAG_8, quote_rich != null);
             stream.writeInt32(flags);
             stream.writeInt32(reply_to_msg_id);
             if (hasFlag(flags, FLAG_0)) {
@@ -63873,6 +63890,7 @@ public class TLRPC {
             if (hasFlag(flags, FLAG_7)) {
                 stream.writeByteArray(poll_option);
             }
+            if (hasFlag(flags, FLAG_8)) Vector.serialize(stream, quote_rich);
         }
     }
 

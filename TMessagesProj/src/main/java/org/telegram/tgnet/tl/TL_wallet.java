@@ -149,6 +149,7 @@ public class TL_wallet {
     public static class WalletTransactionPeer extends TLObject {
 
         public long user_id;
+        public long channel_id;
         public String address;
         public String domain;
 
@@ -157,6 +158,12 @@ public class TL_wallet {
             switch (constructor) {
                 case walletTransactionPeerUser.constructor:
                     result = new walletTransactionPeerUser();
+                    break;
+                case walletTransactionPeerChannel.constructor:
+                    result = new walletTransactionPeerChannel();
+                    break;
+                case walletTransactionPeerTelegramGift.constructor:
+                    result = new walletTransactionPeerTelegramGift();
                     break;
                 case walletTransactionPeerAddress.constructor:
                     result = new walletTransactionPeerAddress();
@@ -180,6 +187,9 @@ public class TL_wallet {
                 final walletTransactionPeerUser a = (walletTransactionPeerUser) this;
                 final walletTransactionPeerUser b = (walletTransactionPeerUser) peer;
                 return a.user_id == b.user_id && TextUtils.equals(a.address, b.address);
+            } else if (peer instanceof walletTransactionPeerChannel) {
+                return this instanceof walletTransactionPeerChannel
+                        && channel_id == peer.channel_id && TextUtils.equals(address, peer.address);
             } else if (peer instanceof walletTransactionPeerAddress) {
                 if (!(this instanceof walletTransactionPeerAddress)) return false;
                 final walletTransactionPeerAddress a = (walletTransactionPeerAddress) this;
@@ -215,6 +225,35 @@ public class TL_wallet {
             if (hasFlag(flags, FLAG_0)) {
                 stream.writeString(domain);
             }
+        }
+    }
+    public static class walletTransactionPeerChannel extends WalletTransactionPeer {
+        public static final int constructor = 0x54e70c31;
+
+        @Override public void readParams(InputSerializedData stream, boolean exception) {
+            final int flags = stream.readInt32(exception);
+            channel_id = stream.readInt64(exception);
+            address = stream.readString(exception);
+            if (hasFlag(flags, FLAG_0)) domain = stream.readString(exception);
+        }
+
+        @Override public void serializeToStream(OutputSerializedData stream) {
+            stream.writeInt32(constructor);
+            stream.writeInt32(domain != null ? FLAG_0 : 0);
+            stream.writeInt64(channel_id);
+            stream.writeString(address);
+            if (domain != null) stream.writeString(domain);
+        }
+    }
+    public static class walletTransactionPeerTelegramGift extends WalletTransactionPeer {
+        public static final int constructor = 0xf4729499;
+        public int flags;
+        @Override public void readParams(InputSerializedData stream, boolean exception) {
+            flags = stream.readInt32(exception);
+        }
+        @Override public void serializeToStream(OutputSerializedData stream) {
+            stream.writeInt32(constructor);
+            stream.writeInt32(flags);
         }
     }
     public static class walletTransactionPeerAddress extends WalletTransactionPeer {
@@ -1586,7 +1625,7 @@ public class TL_wallet {
         }
     }
     public static class nftItem extends TLObject {
-        public static final int constructor = 0x3441fd1c;
+        public static final int constructor = 0x173dfaf3;
 
         public String collection_address;
         public String address;
@@ -1600,9 +1639,10 @@ public class TL_wallet {
         public TLRPC.WebDocument lottie;
         public ArrayList<nftAttribute> attributes = new ArrayList<>();
         public TLRPC.TL_dataJSON extra;
+        public TL_stars.StarGift gift;
 
         public static nftItem TLdeserialize(InputSerializedData stream, int constructor, boolean exception) {
-            final nftItem result = nftItem.constructor != constructor ? null : new nftItem();
+            final nftItem result = nftItem.constructor != constructor && constructor != 0x3441fd1c ? null : new nftItem();
             return TLdeserialize(nftItem.class, result, stream, constructor, exception);
         }
 
@@ -1639,6 +1679,7 @@ public class TL_wallet {
             if (hasFlag(flags, FLAG_8)) {
                 extra = TLRPC.TL_dataJSON.TLdeserialize(stream, stream.readInt32(exception), exception);
             }
+            if (hasFlag(flags, FLAG_9)) gift = TL_stars.StarGift.TLdeserialize(stream, stream.readInt32(exception), exception);
         }
 
         @Override
@@ -1654,6 +1695,7 @@ public class TL_wallet {
             flags = setFlag(flags, FLAG_6, lottie != null);
             flags = setFlag(flags, FLAG_7, attributes != null && !attributes.isEmpty());
             flags = setFlag(flags, FLAG_8, extra != null);
+            flags = setFlag(flags, FLAG_9, gift != null);
             stream.writeInt32(flags);
             if (hasFlag(flags, FLAG_0)) {
                 stream.writeString(collection_address);
@@ -1685,6 +1727,7 @@ public class TL_wallet {
             if (hasFlag(flags, FLAG_8)) {
                 extra.serializeToStream(stream);
             }
+            if (hasFlag(flags, FLAG_9)) gift.serializeToStream(stream);
         }
 
         public boolean isGift() {

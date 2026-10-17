@@ -1154,8 +1154,10 @@ public class TL_bots {
     }
 
     public static class checkUsername extends TLMethod<TLRPC.Bool> {
-        public static final int constructor = 0x87f2219b;
+        public static final int constructor = 0xe3ac4c61;
 
+        public int flags;
+        public boolean additional;
         public String username;
 
         @Override
@@ -1166,6 +1168,8 @@ public class TL_bots {
         @Override
         public void serializeToStream(OutputSerializedData stream) {
             stream.writeInt32(constructor);
+            flags = setFlag(flags, FLAG_0, additional);
+            stream.writeInt32(flags);
             stream.writeString(username);
         }
     }

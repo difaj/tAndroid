@@ -103,7 +103,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     private static final int INDEX_PROFILE = 4;
 
     private static int indexToPosition(int index) {
-        return index > 2 ? index - 1 : index;
+        return index > INDEX_SETTINGS ? index - 1 : index;
     }
 
     private static final int ANIMATOR_ID_TABS_VISIBLE = 0;

@@ -5499,10 +5499,12 @@ public class TL_stars {
     }
 
     public static final class getStarGiftWithdrawalUrl extends TLObject {
-        public static final int constructor = 0xd06e93a8;
+        public static final int constructor = 0xcb4ead0b;
 
+        public int flags;
         public InputSavedStarGift stargift;
         public TLRPC.InputCheckPasswordSRP password;
+        public byte[] tmp_password;
 
         @Override
         public TLObject deserializeResponse(InputSerializedData stream, int constructor, boolean exception) {
@@ -5512,8 +5514,11 @@ public class TL_stars {
         @Override
         public void serializeToStream(OutputSerializedData stream) {
             stream.writeInt32(constructor);
+            flags = setFlag(flags, FLAG_0, tmp_password != null);
+            stream.writeInt32(flags);
             stargift.serializeToStream(stream);
             password.serializeToStream(stream);
+            if (hasFlag(flags, FLAG_0)) stream.writeByteArray(tmp_password);
         }
     }
 

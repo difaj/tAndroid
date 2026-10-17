@@ -3292,6 +3292,7 @@ public class MessagesStorage extends BaseController {
                 for (int a = 0, N = vector.size(); a < N; a++) {
                     TLRPC.DialogFilter newFilter = (TLRPC.DialogFilter) vector.get(a);
                     filtersOrder.add(newFilter.id);
+                    // Hydrate every explicitly included dialog, even when the folder
                     // definition is unchanged. Peer metadata alone cannot render a chat.
                     DialogFilterPeers.collectIncluded(newFilter, dialogsToLoadMap);
                     int newFlags = 0;

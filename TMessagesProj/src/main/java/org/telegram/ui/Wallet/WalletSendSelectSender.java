@@ -78,6 +78,13 @@ public class WalletSendSelectSender extends UniversalFragment {
     private boolean selectingRecipient;
     private Runnable cancelEmulation;
     private boolean destroyed;
+    private WalletNfcController nfcController;
+    private boolean nfcScreenResumed, nfcScanActive;
+    private final Runnable startNfcRunnable = this::startNfcScan;
+    private View nfcFocusView;
+    private final android.view.ViewTreeObserver.OnWindowFocusChangeListener nfcFocusListener = hasFocus -> {
+        if (hasFocus) scheduleNfcScan(); else stopNfc();
+    };
 
     public WalletSendSelectSender setCollectible(TL_wallet.nftItem collectible) {
         this.collectible = collectible;
@@ -88,6 +95,11 @@ public class WalletSendSelectSender extends UniversalFragment {
     @Override
     public void onFragmentDestroy() {
         destroyed = true;
+        stopNfc();
+        if (nfcFocusView != null && nfcFocusView.getViewTreeObserver().isAlive()) {
+            nfcFocusView.getViewTreeObserver().removeOnWindowFocusChangeListener(nfcFocusListener);
+        }
+        nfcFocusView = null;
         if (clipboardManager != null) clipboardManager.removePrimaryClipChangedListener(clipboardListener);
         if (pasteButton != null) pasteButton.animate().cancel();
         if (scanButton != null) scanButton.animate().cancel();
@@ -101,7 +113,13 @@ public class WalletSendSelectSender extends UniversalFragment {
 
     private void selectRecipient(TLRPC.User user, String address) {
         if (collectible == null) {
-            presentFragment(user != null ? new WalletSendEnterAmount(user) : new WalletSendEnterAmount(address).setRecipientDomain(TextUtils.equals(address, validAddress) ? recipientDomain : null));
+            if (selectingRecipient) return;
+            selectingRecipient = true;
+            stopNfc();
+            if (!presentFragment(user != null ? new WalletSendEnterAmount(user) : new WalletSendEnterAmount(address).setRecipientDomain(TextUtils.equals(address, validAddress) ? recipientDomain : null))) {
+                selectingRecipient = false;
+                scheduleNfcScan();
+            }
             return;
         }
         if (selectingRecipient) return;
@@ -214,6 +232,11 @@ public class WalletSendSelectSender extends UniversalFragment {
     @Override
     public View createView(Context context) {
         fragmentView = super.createView(context);
+        if (nfcFocusView != null && nfcFocusView.getViewTreeObserver().isAlive()) {
+            nfcFocusView.getViewTreeObserver().removeOnWindowFocusChangeListener(nfcFocusListener);
+        }
+        nfcFocusView = fragmentView;
+        nfcFocusView.getViewTreeObserver().addOnWindowFocusChangeListener(nfcFocusListener);
 
         actionBar.setAdaptiveBackground(listView);
 
@@ -402,6 +425,9 @@ public class WalletSendSelectSender extends UniversalFragment {
     @Override
     public void onResume() {
         super.onResume();
+        nfcScreenResumed = true;
+        if (collectible == null) selectingRecipient = false;
+        scheduleNfcScan();
         if (clipboardManager != null) {
             clipboardManager.removePrimaryClipChangedListener(clipboardListener);
             clipboardManager.addPrimaryClipChangedListener(clipboardListener);
@@ -411,8 +437,66 @@ public class WalletSendSelectSender extends UniversalFragment {
 
     @Override
     public void onPause() {
+        nfcScreenResumed = false;
+        stopNfc();
         if (clipboardManager != null) clipboardManager.removePrimaryClipChangedListener(clipboardListener);
         super.onPause();
+    }
+
+    @Override
+    public void onTransitionAnimationEnd(boolean isOpen, boolean backward) {
+        super.onTransitionAnimationEnd(isOpen, backward);
+        if (isOpen) scheduleNfcScan();
+    }
+
+    private void stopNfc() {
+        AndroidUtilities.cancelRunOnUIThread(startNfcRunnable);
+        nfcScanActive = false;
+        if (nfcController != null) nfcController.stop();
+    }
+
+    private void scheduleNfcScan() {
+        AndroidUtilities.cancelRunOnUIThread(startNfcRunnable);
+        if (!destroyed && nfcScreenResumed && collectible == null && !selectingRecipient) {
+            AndroidUtilities.runOnUIThread(startNfcRunnable, 80);
+        }
+    }
+
+    private void startNfcScan() {
+        if (destroyed || !nfcScreenResumed || collectible != null || selectingRecipient
+                || getParentActivity() == null || !getParentActivity().hasWindowFocus()) return;
+        if (getParentLayout() != null && getParentLayout().isTransitionAnimationInProgress()) {
+            scheduleNfcScan();
+            return;
+        }
+        if (nfcScanActive) return;
+        if (nfcController == null || !nfcController.isForActivity(getParentActivity())) {
+            if (nfcController != null) nfcController.stop();
+            nfcController = new WalletNfcController(getParentActivity());
+        }
+        // NFC is optional: ordinary contact/address/QR selection remains usable.
+        if (nfcController.availability() != WalletNfcController.Availability.READY) return;
+        final String ownAddress = GramWallet.getInstance(currentAccount).getAddress();
+        WalletNfcController.Availability started = nfcController.read(ownAddress, new WalletNfcController.ReaderCallback() {
+            @Override public void onAddress(String address) {
+                if (destroyed || !nfcScreenResumed || !nfcScanActive || selectingRecipient) return;
+                stopNfc();
+                if (!GramWallet.addressEquals(ownAddress, GramWallet.getInstance(currentAccount).getAddress())) {
+                    BulletinFactory.of(WalletSendSelectSender.this).showForError("WALLET_CHANGED");
+                    return;
+                }
+                AndroidUtilities.hideKeyboard(recipientEdit);
+                recipientDomain = null;
+                validAddress = null;
+                selectRecipient(null, address);
+            }
+            @Override public void onError() {
+                if (destroyed || !nfcScreenResumed || !nfcScanActive || selectingRecipient) return;
+                BulletinFactory.of(WalletSendSelectSender.this).createSimpleBulletin(
+                        getString(R.string.WalletNfcTitle), getString(R.string.WalletNfcReadError)).show();
+            }
+        });
+        nfcScanActive = started == WalletNfcController.Availability.READY;
     }
 
     private void refreshClipboard(boolean animated) {

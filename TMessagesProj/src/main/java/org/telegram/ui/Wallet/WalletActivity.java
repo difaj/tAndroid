@@ -3079,6 +3079,7 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
 
     private void update() {
         final GramWallet wallet = GramWallet.getInstance(currentAccount);
+        updateNfcReceiving();
         updateWalletTopPanel();
         sendButton.setEnabled(wallet.isReady() && wallet.canSend());
         if (!wallet.isReady()) {
@@ -3342,18 +3343,88 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
     @Override
     public void onResume() {
         super.onResume();
+        nfcWalletVisible = true;
         if (actionBar != null) {
             actionBar.post(this::attachBalanceOverlay);
         }
         GramWallet.getInstance(currentAccount).invalidateState();
         if (nftsList != null && GramWallet.getInstance(currentAccount).isReady()) nftsList.invalidate();
         update();
+        if (fragmentView != null) fragmentView.post(this::updateNfcReceiving);
         if (listView != null) {
             updateHistory(true);
         }
     }
 
     private Runnable cancelListen;
+    private boolean nfcWalletVisible;
+    private WalletNfcController nfcController;
+    private AlertDialog nfcReceiveDialog;
+    private boolean nfcNoticePending;
+    private final Runnable nfcNoticeRunnable = this::showNfcScanNotice;
+
+    private void updateNfcReceiving() {
+        if (!nfcWalletVisible || getParentActivity() == null || nfcReceiveDialog != null) return;
+        final GramWallet wallet = GramWallet.getInstance(currentAccount);
+        final String address = wallet.getAddress();
+        if (!wallet.isReady() || !WalletNfcProtocol.isAddressShape(address) || !WalletEngine2.isValidRecipientAddress(address)) {
+            if (nfcController != null) nfcController.stop();
+            return;
+        }
+        if (nfcController == null || !nfcController.isForActivity(getParentActivity())) {
+            if (nfcController != null) nfcController.stop();
+            nfcController = new WalletNfcController(getParentActivity());
+        }
+        nfcController.receive(address, () -> {
+            if (!nfcWalletVisible || nfcReceiveDialog != null) return;
+            if (!GramWallet.addressEquals(address, GramWallet.getInstance(currentAccount).getAddress())) {
+                nfcController.stop(); updateNfcReceiving(); return;
+            }
+            nfcNoticePending = true;
+            showNfcScanNotice();
+        });
+    }
+
+    private void showNfcScanNotice() {
+        if (!nfcWalletVisible || !nfcNoticePending || nfcReceiveDialog != null || getParentActivity() == null) return;
+        // Wait for an existing password/confirmation dialog; never replace it.
+        if (getVisibleDialog() != null) return;
+        // Attached sheets manage their own dialogs/dismiss listeners. Show the
+        // notice on the wallet after they close, not inside the sheet.
+        if (hasShownSheet()) {
+            AndroidUtilities.cancelRunOnUIThread(nfcNoticeRunnable);
+            AndroidUtilities.runOnUIThread(nfcNoticeRunnable, 250);
+            return;
+        }
+        nfcReceiveDialog = new AlertDialog.Builder(getContext()).setTitle(getString(R.string.WalletNfcAddressShared))
+                .setMessage(getString(R.string.WalletNfcReceiveInfo)).setPositiveButton(getString(R.string.OK), null).create();
+        if (showDialog(nfcReceiveDialog, dialog -> {
+            nfcReceiveDialog = null;
+            if (nfcController != null) nfcController.stop();
+            updateNfcReceiving();
+        }) != null) {
+            nfcNoticePending = false;
+        } else {
+            nfcReceiveDialog = null;
+            AndroidUtilities.cancelRunOnUIThread(nfcNoticeRunnable);
+            AndroidUtilities.runOnUIThread(nfcNoticeRunnable, 120);
+        }
+    }
+
+    @Override protected void onDialogDismiss(android.app.Dialog dialog) {
+        super.onDialogDismiss(dialog);
+        if (nfcNoticePending) AndroidUtilities.runOnUIThread(nfcNoticeRunnable);
+    }
+
+    @Override public void onPause() {
+        nfcWalletVisible = false;
+        nfcNoticePending = false;
+        AndroidUtilities.cancelRunOnUIThread(nfcNoticeRunnable);
+        if (nfcController != null) nfcController.stop();
+        AlertDialog dialog = nfcReceiveDialog; nfcReceiveDialog = null;
+        if (dialog != null) dialog.dismiss();
+        super.onPause();
+    }
 
     private StarsController.GiftsList getCardSkinGifts() {
         if (cardSkinGifts == null) {
@@ -3462,6 +3533,11 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
 
     @Override
     public void onFragmentDestroy() {
+        nfcWalletVisible = false;
+        nfcNoticePending = false;
+        AndroidUtilities.cancelRunOnUIThread(nfcNoticeRunnable);
+        if (nfcController != null) nfcController.stop();
+        if (nfcReceiveDialog != null) { nfcReceiveDialog.dismiss(); nfcReceiveDialog = null; }
         if (card != null) card.setOnFrontContentPresented(null);
         balanceReturningToCard = false;
         cancelHistoryTabsAnimation();

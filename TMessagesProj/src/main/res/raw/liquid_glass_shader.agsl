@@ -26,7 +26,10 @@ half4 main(in float2 fragCoord) {
   half2 p = fragCoord - center;
   half sd = sdfRect(p, radius);
   half2 uv = fragCoord;
-  if (sd < 0.0) {
+  // Refraction is zero beyond the edge band: n_cos is zero there, so the
+  // normal is (0, 0, 1) and refract_vec.xy is (0, 0). Avoid the extra SDFs,
+  // normalization and refraction calculations for the flat interior.
+  if (sd < 0.0 && sd > -thickness && refract_intensity != 0.0) {
     half sdX = sdfRect(p + half2(1.0, 0.0), radius);
     half sdY = sdfRect(p + half2(0.0, 1.0), radius);
 
@@ -36,7 +39,7 @@ half4 main(in float2 fragCoord) {
     half3 normal = normalize(half3((sdX - sd) * n_cos, (sdY - sd) * n_cos, n_sin));
 
     half3 refract_vec = refract(half3(0.0, 0.0, -1.0), normal, 1.0 / refract_index);
-    half h = sd < -thickness ? thickness : sqrt(sd * (-2.0 * thickness - sd));
+    half h = sqrt(sd * (-2.0 * thickness - sd));
     half refract_length = (h + 8.0 * thickness) / -refract_vec.z;
 
     uv += refract_vec.xy * refract_length * refract_intensity;

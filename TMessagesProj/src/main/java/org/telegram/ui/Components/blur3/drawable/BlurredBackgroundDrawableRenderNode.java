@@ -32,6 +32,7 @@ public class BlurredBackgroundDrawableRenderNode extends BlurredBackgroundDrawab
     private final Paint paintStrokeBottom = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     private boolean renderNodeInvalidated;
+    private boolean fillInvalidated;
 
     public BlurredBackgroundDrawableRenderNode(BlurredBackgroundSource source) {
         this.renderNode = new RenderNode("BlurredNode");
@@ -56,7 +57,10 @@ public class BlurredBackgroundDrawableRenderNode extends BlurredBackgroundDrawab
 
     @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
     public void setLiquidGlassEffectAllowed() {
-        liquidGlassEffect = new LiquidGlassEffect(renderNodeFill);
+        if (liquidGlassEffect == null) {
+            liquidGlassEffect = new LiquidGlassEffect(renderNodeFill);
+            renderNodeInvalidated = true;
+        }
     }
 
 
@@ -91,7 +95,7 @@ public class BlurredBackgroundDrawableRenderNode extends BlurredBackgroundDrawab
     @Override
     protected void onSourceOffsetChange(float sourceOffsetX, float sourceOffsetY) {
         super.onSourceOffsetChange(sourceOffsetX, sourceOffsetY);
-        renderNodeInvalidated = true;
+        fillInvalidated = true;
     }
 
     @Override
@@ -101,69 +105,86 @@ public class BlurredBackgroundDrawableRenderNode extends BlurredBackgroundDrawab
 
     @Override
     public void updateDisplayList() {
-        final float offsetX = sourceOffsetX;
-        final float offsetY = sourceOffsetY;
+        final boolean updateDecoration = renderNodeInvalidated || !renderNode.hasDisplayList();
+        final boolean opaque = Color.alpha(backgroundColor) == 255;
 
-        Canvas c;
+        // The source changes during scrolling; the outline and strokes usually do not.
+        // A recorded drawRenderNode keeps referencing the live child display list.
+        if (!opaque && (fillInvalidated || updateDecoration || !renderNodeFill.hasDisplayList())) {
+            final float sL = boundProps.boundsWithPadding.left + sourceOffsetX;
+            final float sT = boundProps.boundsWithPadding.top + sourceOffsetY;
+            final float sR = boundProps.boundsWithPadding.right + sourceOffsetX;
+            final float sB = boundProps.boundsWithPadding.bottom + sourceOffsetY;
 
-        final float sL = boundProps.boundsWithPadding.left + offsetX;
-        final float sT = boundProps.boundsWithPadding.top + offsetY;
-        final float sR = boundProps.boundsWithPadding.right + offsetX;
-        final float sB = boundProps.boundsWithPadding.bottom + offsetY;
+            Canvas c = renderNodeFill.beginRecording();
+            try {
+                c.save();
+                c.translate(-sL, -sT);
+                if (liquidGlassEffect != null && Build.VERSION.SDK_INT >= 33) {
+                    final int thickness = Math.max(Math.min(
+                        boundProps.liquidThickness <= 0 ? dp(11) : boundProps.liquidThickness,
+                        Math.min(boundProps.boundsWithPadding.width(), boundProps.boundsWithPadding.height()) / 5), 1);
 
-        c = renderNodeFill.beginRecording();
-        c.save();
-        c.translate(-sL, -sT);
-        if (liquidGlassEffect != null && Build.VERSION.SDK_INT >= 33) {
-            final int thickness = Math.max(Math.min(
-                boundProps.liquidThickness <= 0 ? dp(11) : boundProps.liquidThickness,
-                Math.min(boundProps.boundsWithPadding.width(), boundProps.boundsWithPadding.height()) / 5), 1);
-
-            liquidGlassEffect.update(
-                0, 0, boundProps.boundsWithPadding.width(), boundProps.boundsWithPadding.height(),
-                boundProps.shaderRadii[0], boundProps.shaderRadii[2], boundProps.shaderRadii[4], boundProps.shaderRadii[6],
-                thickness,
-                boundProps.liquidIntensity,
-                boundProps.liquidIndex,
-                backgroundColor
-            );
-        }
-        source.draw(c, sL, sT, sR, sB);
-        c.save();
-        renderNodeFill.endRecording();
-
-
-        c = renderNode.beginRecording();
-        if (Color.alpha(backgroundColor) == 255) {
-            c.drawColor(backgroundColor);
-        } else {
-            c.drawRenderNode(renderNodeFill);
-            if (liquidGlassEffect == null && Color.alpha(backgroundColor) != 0) {
-                c.drawColor(backgroundColor);
+                    liquidGlassEffect.update(
+                        0, 0, boundProps.boundsWithPadding.width(), boundProps.boundsWithPadding.height(),
+                        boundProps.shaderRadii[0], boundProps.shaderRadii[2], boundProps.shaderRadii[4], boundProps.shaderRadii[6],
+                        thickness,
+                        boundProps.liquidIntensity,
+                        boundProps.liquidIndex,
+                        backgroundColor
+                    );
+                }
+                source.draw(c, sL, sT, sR, sB);
+                c.restore();
+            } finally {
+                renderNodeFill.endRecording();
             }
         }
-        if (strokeColorTop != 0) {
-            drawStroke(c, 0, 0, boundProps.boundsWithPadding.width(),
-                    boundProps.boundsWithPadding.height(), boundProps.radii,
-                    boundProps.strokeWidthTop, true, paintStrokeTop);
+
+        if (updateDecoration) {
+            Canvas c = renderNode.beginRecording();
+            try {
+                if (opaque) {
+                    c.drawColor(backgroundColor);
+                } else {
+                    c.drawRenderNode(renderNodeFill);
+                    if (liquidGlassEffect == null && Color.alpha(backgroundColor) != 0) {
+                        c.drawColor(backgroundColor);
+                    }
+                }
+                if (strokeColorTop != 0) {
+                    drawStroke(c, 0, 0, boundProps.boundsWithPadding.width(),
+                            boundProps.boundsWithPadding.height(), boundProps.radii,
+                            boundProps.strokeWidthTop, true, paintStrokeTop);
+                }
+                if (strokeColorBottom != 0) {
+                    drawStroke(c, 0, 0, boundProps.boundsWithPadding.width(),
+                            boundProps.boundsWithPadding.height(), boundProps.radii,
+                            boundProps.strokeWidthBottom, false, paintStrokeBottom);
+                }
+            } finally {
+                renderNode.endRecording();
+            }
         }
-        if (strokeColorBottom != 0) {
-            drawStroke(c, 0, 0, boundProps.boundsWithPadding.width(),
-                    boundProps.boundsWithPadding.height(), boundProps.radii,
-                    boundProps.strokeWidthBottom, false, paintStrokeBottom);
-        }
-        renderNode.endRecording();
+        renderNodeInvalidated = false;
+        fillInvalidated = false;
     }
 
     @Override
     public void updateColors() {
+        final int oldBackgroundColor = backgroundColor;
+        final int oldStrokeColorTop = strokeColorTop;
+        final int oldStrokeColorBottom = strokeColorBottom;
         super.updateColors();
 
         paintShadow.setShadowLayer(shadowLayerRadius, shadowLayerDx, shadowLayerDy, shadowColor);
         paintStrokeTop.setColor(strokeColorTop);
         paintStrokeBottom.setColor(strokeColorBottom);
 
-        renderNodeInvalidated = true;
+        renderNodeInvalidated |= oldBackgroundColor != backgroundColor
+                || oldStrokeColorTop != strokeColorTop || oldStrokeColorBottom != strokeColorBottom;
+        // A provider update can also accompany a new wallpaper with the same tint colors.
+        fillInvalidated = true;
     }
 
     @Override
@@ -180,10 +201,10 @@ public class BlurredBackgroundDrawableRenderNode extends BlurredBackgroundDrawab
         if (!renderNode.hasDisplayList()) {
             source.dispatchOnDrawablesRelativePositionChange();
             updateDisplayList();
-        } else if (renderNodeInvalidated) {
+        } else if (renderNodeInvalidated || fillInvalidated
+                || (Color.alpha(backgroundColor) != 255 && !renderNodeFill.hasDisplayList())) {
             updateDisplayList();
         }
-        renderNodeInvalidated = false;
 
         int color = Theme.multAlpha(shadowColor, renderNode.getAlpha() * shadowAlpha);
         if (Color.alpha(color) != 0) {
@@ -198,16 +219,19 @@ public class BlurredBackgroundDrawableRenderNode extends BlurredBackgroundDrawab
     }
 
     public void invalidateDisplayList() {
-        renderNodeInvalidated = true;
+        fillInvalidated = true;
     }
 
     @Override
     public void setAlpha(int alpha) {
         final int oldAlpha = getAlpha();
+        if (oldAlpha == alpha) {
+            return;
+        }
 
         super.setAlpha(alpha);
+        // Alpha is a RenderNode property, so fading does not require re-recording its content.
         renderNode.setAlpha(alpha / 255f);
-        renderNodeInvalidated = true;
 
         if (oldAlpha == 0 && alpha > 0) {
             source.dispatchOnDrawablesRelativePositionChange();

@@ -98,6 +98,16 @@ public abstract class BlurredBackgroundDrawable extends Drawable {
     }
 
     public BlurredBackgroundDrawable setRadius(float radius) {
+        boolean unchanged = true;
+        for (int i = 0; i < boundProps.radii.length; i++) {
+            if (boundProps.radii[i] != radius || boundProps.shaderRadii[i] != radius) {
+                unchanged = false;
+                break;
+            }
+        }
+        if (unchanged) {
+            return this;
+        }
         Arrays.fill(boundProps.radii, radius);
         Arrays.fill(boundProps.shaderRadii, radius);
         boundProps.build();
@@ -563,8 +573,11 @@ public abstract class BlurredBackgroundDrawable extends Drawable {
     }
 
     public void setStrokeWidth(float strokeWidthTop, float strokeWidthBottom) {
-        boundProps.strokeWidthTop = strokeWidthTop;
-        boundProps.strokeWidthBottom = strokeWidthBottom;
+        if (boundProps.strokeWidthTop != strokeWidthTop || boundProps.strokeWidthBottom != strokeWidthBottom) {
+            boundProps.strokeWidthTop = strokeWidthTop;
+            boundProps.strokeWidthBottom = strokeWidthBottom;
+            onBoundPropsChanged();
+        }
     }
 
 

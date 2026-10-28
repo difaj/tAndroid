@@ -47859,6 +47859,21 @@ public class ChatActivity extends BaseFragment implements
             super(context, themeDelegate);
         }
 
+        @Override
+        public void onScrollStateChanged(int state) {
+            super.onScrollStateChanged(state);
+            if (Build.VERSION.SDK_INT >= 35) {
+                try {
+                    // Keep message motion at the high refresh rate through the entire fling.
+                    setRequestedFrameRate(state == SCROLL_STATE_IDLE
+                            ? View.REQUESTED_FRAME_RATE_CATEGORY_DEFAULT
+                            : View.REQUESTED_FRAME_RATE_CATEGORY_HIGH);
+                } catch (LinkageError e) {
+                    // Keep scrolling functional on vendor builds missing the frame-rate API.
+                }
+            }
+        }
+
         void drawChatBackgroundElements(Canvas canvas) {
             drawChatBackgroundElements(canvas, null);
         }

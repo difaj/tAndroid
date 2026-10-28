@@ -64,10 +64,12 @@ import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.FileLog;
 
 import androidx.annotation.CallSuper;
+import androidx.annotation.DoNotInline;
 import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.Px;
+import androidx.annotation.RequiresApi;
 import androidx.annotation.RestrictTo;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.os.TraceCompat;
@@ -5405,6 +5407,10 @@ public class RecyclerView extends ViewGroup implements ScrollingView,
                         mGapWorker.postFromTraversal(RecyclerView.this, consumedX, consumedY);
                     }
                 }
+                if (Build.VERSION.SDK_INT >= 35) {
+                    Api35Impl.setFrameContentVelocity(RecyclerView.this,
+                            Math.abs(scroller.getCurrVelocity()));
+                }
             }
 
             isFlingerWorking = false;
@@ -5519,6 +5525,9 @@ public class RecyclerView extends ViewGroup implements ScrollingView,
             if (!canStopFlinger) return;
             removeCallbacks(this);
             mOverScroller.abortAnimation();
+            if (Build.VERSION.SDK_INT >= 35) {
+                Api35Impl.setFrameContentVelocity(RecyclerView.this, 0f);
+            }
         }
 
     }
@@ -13616,5 +13625,17 @@ public class RecyclerView extends ViewGroup implements ScrollingView,
             mScrollingChildHelper = new NestedScrollingChildHelper(this);
         }
         return mScrollingChildHelper;
+    }
+
+    @RequiresApi(35)
+    private static final class Api35Impl {
+        @DoNotInline
+        static void setFrameContentVelocity(View view, float velocity) {
+            try {
+                view.setFrameContentVelocity(velocity);
+            } catch (LinkageError e) {
+                // Some vendor builds do not expose this API despite reporting API 35+.
+            }
+        }
     }
 }

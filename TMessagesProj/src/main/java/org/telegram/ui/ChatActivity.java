@@ -3427,6 +3427,8 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
+        AndroidUtilities.cancelRunOnUIThread(checkTranslationRunnable);
+        translationCheckDeferredUntilIdle = false;
         if (quickMediaPicker != null) {
             quickMediaPicker.dismiss();
             quickMediaPicker = null;
@@ -6861,6 +6863,10 @@ public class ChatActivity extends BaseFragment implements
             @Override
             public void onScrollStateChanged(RecyclerView recyclerView, int newState) {
                 if (newState == RecyclerView.SCROLL_STATE_IDLE) {
+                    if (translationCheckDeferredUntilIdle) {
+                        translationCheckDeferredUntilIdle = false;
+                        checkTranslation(false);
+                    }
                     if (pollHintCell != null) {
                         pollHintView.showForMessageCell(pollHintCell, -1, pollHintX, pollHintY, true);
                         pollHintCell = null;
@@ -6882,6 +6888,9 @@ public class ChatActivity extends BaseFragment implements
                     invalidateMergedVisibleBlurredPositionsAndSources(BLUR_INVALIDATE_FLAG_SCROLL);
                     scrollByTouch = false;
                 } else {
+                    // Translation scans all loaded messages; keep it out of drag and fling frames.
+                    AndroidUtilities.cancelRunOnUIThread(checkTranslationRunnable);
+                    translationCheckDeferredUntilIdle = true;
                     if (groupEmojiPackHint != null && groupEmojiPackHint.shown()) {
                         groupEmojiPackHint.hide();
                     }
@@ -7019,7 +7028,11 @@ public class ChatActivity extends BaseFragment implements
                     chatToUpdate.scrollableViewNoiseSuppressor.onScrolled(dx, dy);
                 }
 
-                checkTranslation(false);
+                if (recyclerView.getScrollState() == RecyclerView.SCROLL_STATE_IDLE) {
+                    checkTranslation(false);
+                } else {
+                    translationCheckDeferredUntilIdle = true;
+                }
 
                 if (savedMessagesTagHint != null) {
                     if (savedMessagesTagHint.shown()) {
@@ -25271,6 +25284,7 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private long lastTranslationCheck;
+    private boolean translationCheckDeferredUntilIdle;
     private void checkTranslation(boolean force) {
         if (System.currentTimeMillis() - lastTranslationCheck > 1000) {
             force = true;
@@ -25301,12 +25315,12 @@ public class ChatActivity extends BaseFragment implements
             }
 
             if (minId <= maxId) {
-                ArrayList<Long> groupsChecked = new ArrayList<>();
+                HashSet<Long> groupsChecked = new HashSet<>();
                 for (int i = 0; i < messages.size(); ++i) {
                     MessageObject messageObject = messages.get(i);
                     MessageObject.GroupedMessages group = groupedMessagesMap.get(messageObject.getGroupId());
                     if (group != null) {
-                        if (!groupsChecked.contains(group.groupId)) {
+                        if (groupsChecked.add(group.groupId)) {
                             for (int j = 0; j < group.messages.size(); ++j) {
                                 MessageObject messageObject1 = group.messages.get(j);
                                 if (messageObject1 != null) {
@@ -25316,7 +25330,6 @@ public class ChatActivity extends BaseFragment implements
                                     );
                                 }
                             }
-                            groupsChecked.add(group.groupId);
                         }
                     } else {
                         final int mid = messageObject.getId();

@@ -5857,17 +5857,25 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             int newFirst = -1, newLast = -1, newCount = 0;
 
             int startBlock = 0;
+            int startBlockOffset = 0;
+            int nextBlockOffset = 0;
             for (int a = 0; a < currentMessageObject.textLayoutBlocks.size(); a++) {
-                if (currentMessageObject.textLayoutBlocks.get(a).textYOffset(currentMessageObject.textLayoutBlocks, transitionParams) > p) {
+                if (nextBlockOffset > p) {
                     break;
                 }
                 startBlock = a;
+                startBlockOffset = nextBlockOffset;
+                MessageObject.TextLayoutBlock block = currentMessageObject.textLayoutBlocks.get(a);
+                nextBlockOffset += block.padTop + block.height(transitionParams) + block.padBottom;
             }
 
+            // Accumulate offsets once instead of summing every preceding block for each lookup.
+            int blockOffset = startBlockOffset;
             for (int a = startBlock; a < currentMessageObject.textLayoutBlocks.size(); a++) {
                 MessageObject.TextLayoutBlock block = currentMessageObject.textLayoutBlocks.get(a);
-                float y = block.textYOffset(currentMessageObject.textLayoutBlocks, transitionParams);
-                if (intersect(y, y + block.padTop + block.height(transitionParams) + block.padBottom, p, p + height)) {
+                float y = blockOffset;
+                blockOffset += block.padTop + block.height(transitionParams) + block.padBottom;
+                if (intersect(y, blockOffset, p, p + height)) {
                     if (newFirst == -1) {
                         newFirst = a;
                     }

@@ -45,6 +45,12 @@ public class ProfileLocationCell extends LinearLayout implements Theme.Colorable
     @Override
     public void updateColors() {
         try {
+            if (textView1 != null) {
+                textView1.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider));
+            }
+            if (textView2 != null) {
+                textView2.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider));
+            }
             if (thumbDrawable != null) {
                 final int color = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider);
                 thumbDrawable.setColors(
@@ -104,19 +110,6 @@ public class ProfileLocationCell extends LinearLayout implements Theme.Colorable
 
     public TextView getTextView2() {
         return textView2;
-    }
-
-    public void updateColors() {
-        final int color = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider);
-        textView1.setTextColor(color);
-        textView2.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider));
-        thumbDrawable.setColors(
-            Theme.multAlpha(color, .05f),
-            Theme.multAlpha(color, .15f),
-            Theme.multAlpha(color, .1f),
-            Theme.multAlpha(color, .3f)
-        );
-        invalidate();
     }
 
     @Override

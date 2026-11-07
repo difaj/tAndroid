@@ -11585,15 +11585,6 @@ public class SharedMediaLayout extends FrameLayout implements Theme.Colorable, N
         }
     }
 
-    public void updateColors() {
-        if (optionsSearchImageView != null) {
-            optionsSearchImageView.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_actionBarActionModeDefaultIcon), PorterDuff.Mode.SRC_IN));
-        }
-        if (giftsContainer != null) {
-            giftsContainer.updateColors();
-        }
-    }
-
     private SpannableStringBuilder addPostButton;
     private CharSequence addPostText() {
         if (addPostButton == null) {
@@ -13096,6 +13087,12 @@ public class SharedMediaLayout extends FrameLayout implements Theme.Colorable, N
     @Override
     public void updateColors() {
         try {
+            if (optionsSearchImageView != null) {
+                optionsSearchImageView.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_actionBarActionModeDefaultIcon), PorterDuff.Mode.SRC_IN));
+            }
+            if (giftsContainer != null) {
+                giftsContainer.updateColors();
+            }
             iBlur3SourceColor.setColor(getThemedColor(Theme.key_windowBackgroundWhite));
             if (backDrawable != null) {
                 backDrawable.setColor(getThemedColor(Theme.key_actionBarActionModeDefaultIcon));

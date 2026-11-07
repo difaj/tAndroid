@@ -55,6 +55,7 @@ import org.telegram.messenger.browser.Browser;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.BottomSheet;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Components.AlertsCreator;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.LayoutHelper;
@@ -66,7 +67,7 @@ import org.telegram.ui.Components.URLSpanNoUnderline;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-public class AboutLinkCell extends FrameLayout {
+public class AboutLinkCell extends FrameLayout implements Theme.Colorable {
 
     private StaticLayout textLayout;
     private String oldText;
@@ -198,6 +199,9 @@ public class AboutLinkCell extends FrameLayout {
         return color;
     }
 
+    private int lastRippleColor;
+
+    @Override
     public void updateColors() {
         int bgColor = processColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
         if (shadowDrawable != null) {
@@ -218,6 +222,16 @@ public class AboutLinkCell extends FrameLayout {
         int maxWidth = lastMaxWidth > 0 ? lastMaxWidth : (AndroidUtilities.displaySize.x - dp(18 + 18));
         checkTextLayout(maxWidth, true);
         invalidate();
+        try {
+            final int rippleColor = Theme.getColor(Theme.key_listSelector, resourcesProvider);
+            if (rippleBackground != null && rippleColor != lastRippleColor) { // recoloring a RippleDrawable allocates a ColorStateList
+                lastRippleColor = rippleColor;
+                Theme.setSelectorDrawableColor(rippleBackground, rippleColor, true);
+            }
+            backgroundPaint.setColor(processColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider)));
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
     }
 
     @Override

@@ -45,6 +45,7 @@ import org.telegram.ui.Stories.StoriesListPlaceProvider;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 
 public class ProfileChannelCell extends FrameLayout implements Theme.Colorable {
 
@@ -456,6 +457,10 @@ public class ProfileChannelCell extends FrameLayout implements Theme.Colorable {
             dialogCell.buildLayout();
             dialogCell.update(0);
         }
+    }
+    @Override
+    public void addColorKeys(HashSet<Integer> colors) {
+        colors.add(Theme.key_windowBackgroundWhiteBlueHeader);
     }
 
 }

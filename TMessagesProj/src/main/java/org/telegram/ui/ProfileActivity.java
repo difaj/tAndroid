@@ -3906,8 +3906,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     MediaController.getInstance().currentSavedMusicList = savedMusicList;
                     MediaController.getInstance().getPlaylist().clear();
                     MediaController.getInstance().getPlaylist().addAll(savedMusicList.list);
-                    if (!sameList) MediaController.getInstance().playMessage(savedMusicList.list.get(0));
-                    showDialog(new AudioPlayerAlert(getContext(), null));
+                    if (!sameList || MediaController.getInstance().isMessagePaused()) {
+                        MediaController.getInstance().playMessage(savedMusicList.list.get(0));
+                    }
                 }
             });
 
@@ -12718,6 +12719,16 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         return Theme.getColor(key, resourcesProvider);
                     }
                     if (peerColor != null) {
+                        if (key == Theme.key_inappPlayerTitle || key == Theme.key_inappPlayerPerformer
+                                || key == Theme.key_inappPlayerPlayPause) {
+                            return getProfileTextColor();
+                        }
+                        if (key == Theme.key_inappPlayerClose) {
+                            return Theme.multAlpha(getProfileTextColor(), .72f);
+                        }
+                        if (key == Theme.key_inappPlayerBackground) {
+                            return getProfileCardColor();
+                        }
                         if (key == Theme.key_profile_title || key == Theme.key_player_actionBarTitle || key == Theme.key_dialogTextBlack || key == Theme.key_dialogTextBlue || key == Theme.key_dialogTextBlue2 || key == Theme.key_dialogTextLink || key == Theme.key_dialogButton || key == Theme.key_actionBarDefaultSubmenuItem || key == Theme.key_actionBarDefaultSubmenuItemIcon || key == Theme.key_windowBackgroundWhiteBlackText || key == Theme.key_windowBackgroundWhiteBlueText || key == Theme.key_windowBackgroundWhiteBlueText2 || key == Theme.key_windowBackgroundWhiteValueText || key == Theme.key_profile_tabSelectedText || key == Theme.key_chats_name || key == Theme.key_chats_nameMessage || key == Theme.key_chat_messageLinkIn || key == Theme.key_windowBackgroundWhiteLinkText || key == Theme.key_actionBarActionModeDefaultIcon) {
                             return getProfileTextColor();
                         }

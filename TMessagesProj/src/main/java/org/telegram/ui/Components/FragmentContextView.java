@@ -766,11 +766,14 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
                 MessageObject messageObject = MediaController.getInstance().getPlayingMessageObject();
                 if (fragment != null && messageObject != null) {
                     if (messageObject.isMusic()) {
+                        // The inline panel belongs to the profile palette; the full player uses the app theme.
+                        final Theme.ResourcesProvider playerResources = fragment instanceof org.telegram.ui.ProfileActivity
+                                ? null : resourcesProvider;
                         final Activity activity = AndroidUtilities.findActivity(getContext());
                         if (activity instanceof LaunchActivity) {
-                            new AudioPlayerAlert(activity, resourcesProvider).show();
+                            new AudioPlayerAlert(activity, playerResources).show();
                         } else if (AndroidUtilities.isContextSafe(LaunchActivity.instance)) {
-                            new AudioPlayerAlert(LaunchActivity.instance, resourcesProvider).show();
+                            new AudioPlayerAlert(LaunchActivity.instance, playerResources).show();
                         }
                     } else {
                         long dialogId = 0;

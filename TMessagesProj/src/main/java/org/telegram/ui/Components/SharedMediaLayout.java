@@ -2430,7 +2430,7 @@ public class SharedMediaLayout extends FrameLayout implements Theme.Colorable, N
                         o.add(R.drawable.msg_delete, getString(R.string.StoriesAlbumMenuDeleteAlbum), true, () -> openDeleteStoriesAlbumAlert(profileActivity, dialog_id, albumId));
                         o.show();
                     }
-                }) {
+                }, resourcesProvider) {
 
                 @Override
                 protected void updatedReordering(boolean reordering) {
@@ -13189,6 +13189,12 @@ public class SharedMediaLayout extends FrameLayout implements Theme.Colorable, N
     @Override
     public void updateColors() {
         try {
+            if (storiesContainer != null) {
+                storiesContainer.updateColors();
+            }
+            if (fragmentContextView != null) {
+                fragmentContextView.updateColors();
+            }
             if (optionsSearchImageView != null) {
                 optionsSearchImageView.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_actionBarActionModeDefaultIcon), PorterDuff.Mode.SRC_IN));
             }

@@ -46,12 +46,17 @@ public class ProfileStoriesCollectionTabs extends FrameLayout implements Notific
     }
 
     public ProfileStoriesCollectionTabs(Context context, StoriesController.StoriesCollections collections, Delegate delegate) {
+        this(context, collections, delegate, null);
+    }
+
+    public ProfileStoriesCollectionTabs(Context context, StoriesController.StoriesCollections collections, Delegate delegate,
+                                        Theme.ResourcesProvider resourcesProvider) {
         super(context);
 
         this.collections = collections;
         this.sendCollectionsOrder = collections::sendOrder;
 
-        viewPager = new ViewPagerFixed(context) {
+        viewPager = new ViewPagerFixed(context, resourcesProvider) {
             @Override
             public void onTabAnimationUpdate(boolean manual) {
                 super.onTabAnimationUpdate(manual);

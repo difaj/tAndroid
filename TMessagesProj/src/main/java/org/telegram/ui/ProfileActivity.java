@@ -903,6 +903,18 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     }
 
     public static class AvatarImageView extends BackupImageView implements SizeNotifierFrameLayout.IViewWithInvalidateCallback {
+        public void setMusicMotion(float x, float y, float scale) {
+            // Keep the native top-left pivot used by profile transitions; compensate to scale about the centre.
+            setTranslationX(x - (scale - 1f) * getWidth() / 2f);
+            setTranslationY(y - (scale - 1f) * getHeight() / 2f);
+            setScaleX(scale);
+            setScaleY(scale);
+        }
+
+        public float getVisiblePhotoInset() {
+            return (hasStories ? AndroidUtilities.dpf2(3.5f) : 0f) * (1f - progressToExpand)
+                    * progressToInsets * (1f - foregroundAlpha);
+        }
 
         private boolean isPulledDown;
         private float blurSizeFraction;
@@ -1262,6 +1274,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         public final Matrix backgroundGradientMatrix = new Matrix();
         private final Paint backgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint bottomFadePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint musicDimPaint = new Paint();
+        private final Matrix musicDimMatrix = new Matrix();
+        private final LinearGradient musicDimGradient = new LinearGradient(0, 0, 0, 1,
+                new int[]{Color.BLACK, Color.BLACK, Color.TRANSPARENT}, new float[]{0, .65f, 1}, Shader.TileMode.CLAMP);
         private final Matrix bottomFadeMatrix = new Matrix();
         private LinearGradient bottomFadeGradient;
         private int bottomFadeColor;
@@ -1430,6 +1446,15 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 if (hasColorById) {
                     drawBottomFade(canvas, y1, progressToGradient);
+                }
+                final float musicDim = giftsView == null ? 0f : giftsView.getMusicDimming() * backgroundVisibility;
+                if (musicDim > .001f) {
+                    // Dim only the background. Text, avatar, gifts and controls keep their own brightness.
+                    musicDimMatrix.setScale(1, y1);
+                    musicDimGradient.setLocalMatrix(musicDimMatrix);
+                    musicDimPaint.setShader(musicDimGradient);
+                    musicDimPaint.setAlpha(Math.round(255 * musicDim));
+                    canvas.drawRect(0, 0, getMeasuredWidth(), y1, musicDimPaint);
                 }
                 if (previousTransitionFragment != null) {
                     ActionBar actionBar = previousTransitionFragment.getActionBar();
@@ -5262,6 +5287,22 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             CanvasButton canvasButton;
 
             @Override
+            public boolean dispatchTouchEvent(MotionEvent event) {
+                final boolean wasSpinning = giftsView != null && giftsView.isAvatarSpinning();
+                if (giftsView != null && giftsView.onAvatarTouchEvent(event)) {
+                    if (!wasSpinning) {
+                        // Cancel the pending avatar/story tap once the horizontal swipe has actually won.
+                        final MotionEvent cancel = MotionEvent.obtain(event);
+                        cancel.setAction(MotionEvent.ACTION_CANCEL);
+                        super.dispatchTouchEvent(cancel);
+                        cancel.recycle();
+                    }
+                    return true;
+                }
+                return super.dispatchTouchEvent(event);
+            }
+
+            @Override
             protected void dispatchDraw(Canvas canvas) {
                 super.dispatchDraw(canvas);
                 if (transitionOnlineText != null) {
@@ -5384,6 +5425,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         avatarImage.setRoundRadiusForExpand(getSmallAvatarRoundRadius());
         avatarImage.setPivotX(0);
         avatarImage.setPivotY(0);
+        avatarContainer.setClipChildren(false);
         avatarContainer.addView(avatarImage, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         avatarImage.setOnClickListener(v -> {
             if (avatarBig != null) {
@@ -5670,7 +5712,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
         avatarContainer2.addView(storyView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         giftsView = new ProfileGiftsView(context, currentAccount, getDialogId(), avatarContainer, avatarImage, resourcesProvider);
+        giftsView.setMusicFrameCallback(topView::invalidate);
         avatarContainer2.addView(giftsView, 0, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        // Front gifts must receive their drag gesture before the avatar's stories hit area.
+        avatarContainer2.addView(giftsView.getForegroundView(),
+                LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        giftsView.setMusicDocumentId(userInfo != null && userInfo.saved_music != null ? userInfo.saved_music.id : 0);
         updateProfileData(true);
 
         writeButton = new RLottieImageView(context);
@@ -9856,6 +9903,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onResume() {
         super.onResume();
+        if (giftsView != null) {
+            giftsView.setHostResumed(true);
+        }
         if (sharedMediaLayout != null) {
             sharedMediaLayout.onResume();
         }
@@ -9905,6 +9955,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onPause() {
         super.onPause();
+        if (giftsView != null) {
+            giftsView.setHostResumed(false);
+        }
         if (undoView != null) {
             undoView.hide(true, 0);
         }
@@ -11464,6 +11517,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (musicView != null) {
             if (userInfo != null) {
                 musicView.setMusicDocument(userInfo.saved_music);
+                if (giftsView != null) {
+                    giftsView.setMusicDocumentId(userInfo.saved_music != null ? userInfo.saved_music.id : 0);
+                }
             }
             musicView.setVisibility(hasMusic ? View.VISIBLE : View.GONE);
             if (hasBalance) {

@@ -149,6 +149,14 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
     public interface AudioVisualizerDelegate {
         void onVisualizerUpdate(boolean playing, boolean animate, float[] values);
         boolean needUpdate();
+
+        default boolean needAudioLevel() {
+            return false;
+        }
+
+        // May run on the audio renderer thread; implementations must not touch Views.
+        default void onAudioLevel(float level, float bass) {
+        }
     }
 
     public ExoPlayer player;
@@ -1822,6 +1830,12 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
 
     private class VisualizerBufferSink implements TeeAudioProcessor.AudioBufferSink {
 
+        private int pcmEncoding = C.ENCODING_PCM_16BIT;
+        private long lastLevelUpdate;
+        private float[] bassFilter = new float[2];
+        private float[] bassFilterSecond = new float[2];
+        private float bassFilterAlpha = .0233f;
+
         private final int BUFFER_SIZE = 1024;
         private final int MAX_BUFFER_SIZE = BUFFER_SIZE * 8;
         FourierTransform.FFT fft = new FourierTransform.FFT(BUFFER_SIZE, 48000);
@@ -1836,7 +1850,62 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
 
         @Override
         public void flush(int sampleRateHz, int channelCount, int encoding) {
+            pcmEncoding = encoding;
+            bassFilter = new float[Math.max(1, channelCount)];
+            bassFilterSecond = new float[bassFilter.length];
+            bassFilterAlpha = 1f - (float) Math.exp(-2 * Math.PI * 180 / Math.max(1, sampleRateHz));
+            lastLevelUpdate = 0;
+            position = 0;
+            byteBuffer.clear();
+        }
 
+        private void updateAudioLevel(ByteBuffer buffer) {
+            final long now = android.os.SystemClock.uptimeMillis();
+            if (!audioVisualizerDelegate.needAudioLevel() || now - lastLevelUpdate < 40) return;
+            lastLevelUpdate = now;
+            final int bytesPerSample;
+            switch (pcmEncoding) {
+                case C.ENCODING_PCM_8BIT: bytesPerSample = 1; break;
+                case C.ENCODING_PCM_16BIT: bytesPerSample = 2; break;
+                case C.ENCODING_PCM_24BIT: bytesPerSample = 3; break;
+                case C.ENCODING_PCM_32BIT:
+                case C.ENCODING_PCM_FLOAT: bytesPerSample = 4; break;
+                default: return;
+            }
+            final int count = Math.min(2048, buffer.remaining() / bytesPerSample);
+            double sum = 0, squares = 0, bassSum = 0, bassSquares = 0;
+            for (int i = 0, at = buffer.position(); i < count; i++, at += bytesPerSample) {
+                final float sample;
+                if (bytesPerSample == 1) {
+                    sample = ((buffer.get(at) & 255) - 128) / 128f;
+                } else if (bytesPerSample == 2) {
+                    sample = (short) ((buffer.get(at) & 255) | buffer.get(at + 1) << 8) / 32768f;
+                } else if (bytesPerSample == 3) {
+                    sample = ((buffer.get(at) & 255) | (buffer.get(at + 1) & 255) << 8
+                            | buffer.get(at + 2) << 16) / 8388608f;
+                } else {
+                    final int bits = (buffer.get(at) & 255) | (buffer.get(at + 1) & 255) << 8
+                            | (buffer.get(at + 2) & 255) << 16 | buffer.get(at + 3) << 24;
+                    sample = pcmEncoding == C.ENCODING_PCM_FLOAT ? Float.intBitsToFloat(bits) : bits / 2147483648f;
+                }
+                if (!Float.isNaN(sample) && !Float.isInfinite(sample)) {
+                    sum += sample;
+                    squares += sample * sample;
+                    final int channel = i % bassFilter.length;
+                    bassFilter[channel] += bassFilterAlpha * (sample - bassFilter[channel]);
+                    final float low = bassFilterSecond[channel] += bassFilterAlpha * (bassFilter[channel] - bassFilterSecond[channel]);
+                    bassSum += low;
+                    bassSquares += low * low;
+                }
+            }
+            final double mean = count == 0 ? 0 : sum / count;
+            final float rms = count == 0 ? 0 : (float) Math.sqrt(Math.max(0, squares / count - mean * mean));
+            final float level = Math.min(1f, (float) Math.sqrt(Math.max(0f, rms - .0015f)) * 2.5f);
+            final double bassMean = count == 0 ? 0 : bassSum / count;
+            final float bassRms = count == 0 ? 0 : (float) Math.sqrt(Math.max(0, bassSquares / count - bassMean * bassMean));
+            final float bass = Math.min(1f, (float) Math.sqrt(Math.max(0f, bassRms - .0015f)) * 3f);
+            // Absolute reads above leave the audio buffer untouched. This meter is independent of the FFT gate.
+            audioVisualizerDelegate.onAudioLevel(level, bass);
         }
 
 
@@ -1851,6 +1920,7 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
                 audioUpdateHandler.postDelayed(() -> {
                     audioUpdateHandler.removeCallbacksAndMessages(null);
                     audioVisualizerDelegate.onVisualizerUpdate(false, true, null);
+                    audioVisualizerDelegate.onAudioLevel(0f, 0f);
                 }, 80);
                 return;
             }
@@ -1858,6 +1928,8 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
             if (!audioVisualizerDelegate.needUpdate()) {
                 return;
             }
+
+            updateAudioLevel(buffer);
 
             int len = buffer.limit();
             if (len > MAX_BUFFER_SIZE) {

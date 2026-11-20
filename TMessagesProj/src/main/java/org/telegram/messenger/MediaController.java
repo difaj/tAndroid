@@ -135,8 +135,44 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 public class MediaController implements AudioManager.OnAudioFocusChangeListener, NotificationCenter.NotificationCenterDelegate, SensorEventListener {
+
+    // Reuse the player's PCM analyser only while a visible effect needs it.
+    private final CopyOnWriteArraySet<Object> playbackLevelObservers = new CopyOnWriteArraySet<>();
+    private volatile float playbackLevel;
+    private volatile float playbackBass;
+    private volatile long playbackLevelTime;
+
+    public void setPlaybackLevelObserver(Object observer, boolean enabled) {
+        if (enabled) {
+            playbackLevelObservers.add(observer);
+        } else {
+            playbackLevelObservers.remove(observer);
+        }
+    }
+
+    public boolean isProfileMusicPlaying(int account, long profileId, long documentId) {
+        final MessageObject message = getPlayingMessageObject();
+        if (documentId == 0 || message == null || message.currentAccount != account || !message.isMusic()
+                || isMessagePaused() || audioPlayer == null || message.getDocument() == null) {
+            return false;
+        }
+        final boolean profilePlaylist = currentSavedMusicList != null && currentSavedMusicList.currentAccount == account
+                && currentSavedMusicList.dialogId == profileId && message.getDialogId() == profileId;
+        return profilePlaylist || message.getDocument().id == documentId;
+    }
+
+    public float getPlaybackLevel(int account, long profileId, long documentId) {
+        return isProfileMusicPlaying(account, profileId, documentId)
+                && SystemClock.uptimeMillis() - playbackLevelTime <= 250 ? playbackLevel : 0f;
+    }
+
+    public float getPlaybackBass(int account, long profileId, long documentId) {
+        return isProfileMusicPlaying(account, profileId, documentId)
+                && SystemClock.uptimeMillis() - playbackLevelTime <= 250 ? playbackBass : 0f;
+    }
 
     private native int startRecord(String path, int sampleRate);
 
@@ -4018,8 +4054,20 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                     }
 
                     @Override
+                    public boolean needAudioLevel() {
+                        return !playbackLevelObservers.isEmpty();
+                    }
+
+                    @Override
+                    public void onAudioLevel(float level, float bass) {
+                        playbackLevel = level;
+                        playbackBass = bass;
+                        playbackLevelTime = SystemClock.uptimeMillis();
+                    }
+
+                    @Override
                     public boolean needUpdate() {
-                        return Theme.getCurrentAudiVisualizerDrawable().getParentView() != null;
+                        return Theme.getCurrentAudiVisualizerDrawable().getParentView() != null || !playbackLevelObservers.isEmpty();
                     }
                 });
                 if (exists) {

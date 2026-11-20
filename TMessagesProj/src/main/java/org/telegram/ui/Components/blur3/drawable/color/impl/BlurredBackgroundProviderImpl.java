@@ -271,6 +271,22 @@ public class BlurredBackgroundProviderImpl {
             .build();
     }
 
+    /** The profile's tinted surface needs a faint rim, including in the light system theme. */
+    public static BlurredBackgroundProvider profile(Theme.ResourcesProvider resourcesProvider) {
+        return new BlurredBackgroundProviderBuilder(resourcesProvider)
+            .setBackgroundColor((r, isDark) -> {
+                final float alpha = LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS) ? 0.85f : 0.80f;
+                return solveSrcColor(Theme.getColor(Theme.key_windowBackgroundGray, r),
+                        Theme.getColor(Theme.key_windowBackgroundWhite, r), alpha);
+            })
+            .setStrokeColorTop(0x20FFFFFF, 0x20FFFFFF)
+            .setStrokeColorBottom(0x10FFFFFF, 0x10FFFFFF)
+            .setShadowColor(0x10000000, 0)
+            .setShadowLayer(dpf2(24 / 3f), 0, dpf2(7f / 3f))
+            .setStrokeWidth(dpf2(0.4f), dpf2(0.4f))
+            .build();
+    }
+
     /** A frosted sheet over the content, e.g. the list over the map: the content shows through its blur. */
     public static BlurredBackgroundProvider frostedSheet(Theme.ResourcesProvider resourcesProvider) {
         return new BlurredBackgroundProviderBuilder(resourcesProvider)

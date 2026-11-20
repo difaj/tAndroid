@@ -1630,6 +1630,15 @@ public class SharedMediaLayout extends FrameLayout implements Theme.Colorable, N
 
     private final @NonNull GlassSourceColor iBlur3SourceColor;
 
+    private BlurredBackgroundProvider getPanelGlassColors() {
+        if (simpleActionBar == null) {
+            return BlurredBackgroundProviderImpl.topPanel(resourcesProvider);
+        }
+        return viewType == VIEW_TYPE_PROFILE_ACTIVITY
+                ? BlurredBackgroundProviderImpl.profile(resourcesProvider)
+                : BlurredBackgroundProviderImpl.simpleActionBar(resourcesProvider);
+    }
+
     public SharedMediaLayout(Context context, long did, SharedMediaPreloader preloader, int commonGroupsCount, ArrayList<Integer> sortedUsers, TLRPC.ChatFull chatInfo, TLRPC.UserFull userInfo, int initialTab, int initialStoryAlbumId, BaseFragment parent, Delegate delegate, int viewType, Theme.ResourcesProvider resourcesProvider) {
         this(context, did, preloader, commonGroupsCount, sortedUsers, chatInfo, userInfo, initialTab, initialStoryAlbumId, parent, delegate, viewType, resourcesProvider, null);
     }
@@ -3457,13 +3466,13 @@ public class SharedMediaLayout extends FrameLayout implements Theme.Colorable, N
         for (MediaPage page : mediaPages) {
             final RecyclerListView.FastScroll fastScroll = page.listView.getFastScroll();
             if (fastScroll != null) {
-                fastScroll.applyBlurDrawables(iBlur3FactoryLiquidGlass, simpleActionBar != null ? BlurredBackgroundProviderImpl.simpleActionBar(resourcesProvider) : BlurredBackgroundProviderImpl.topPanel(resourcesProvider));
+                fastScroll.applyBlurDrawables(iBlur3FactoryLiquidGlass, getPanelGlassColors());
             }
         }
 
         if (!customTabs()) {
             // a simple host's tabs are glass like its header
-            final BlurredBackgroundProvider glassColors = simpleActionBar != null ? BlurredBackgroundProviderImpl.simpleActionBar(resourcesProvider) : BlurredBackgroundProviderImpl.topPanel(resourcesProvider);
+            final BlurredBackgroundProvider glassColors = getPanelGlassColors();
             topPanelLayout = new DialogsActivityTopPanelLayout(context);
             // the content exactly in the glass: the layout's background starts 14dp in and is inset by 7dp
             topPanelLayout.setPadding(dp(11), TOP_PANEL_GLASS_TOP, dp(11), TOP_PANEL_GLASS_TOP);
@@ -13089,6 +13098,9 @@ public class SharedMediaLayout extends FrameLayout implements Theme.Colorable, N
         try {
             if (optionsSearchImageView != null) {
                 optionsSearchImageView.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_actionBarActionModeDefaultIcon), PorterDuff.Mode.SRC_IN));
+            }
+            if (scrollSlidingTextTabStrip != null) {
+                scrollSlidingTextTabStrip.updateColors();
             }
             if (giftsContainer != null) {
                 giftsContainer.updateColors();

@@ -256,6 +256,15 @@ public class GlassEngine {
         otherGenerationId++;
     }
 
+    /** A screen-local palette changed without changing the application's theme. */
+    public void invalidateColors() {
+        colorGenerationId++;
+        invalidate();
+        for (ViewPositionState state : viewPositionStates) {
+            state.view.invalidate();
+        }
+    }
+
     public void invalidateScroll() {
         scrollGenerationId++;
     }
@@ -266,6 +275,8 @@ public class GlassEngine {
 
     private long lastOtherGenerationId;
     private long lastThemeGenerationId;
+    private long colorGenerationId;
+    private long lastColorGenerationId;
     private long lastGlassSettingsGenerationId;
 
 
@@ -281,8 +292,9 @@ public class GlassEngine {
         }
 
         final long themeGenerationId = Theme.getThemeGenerationId();
-        if (lastThemeGenerationId != themeGenerationId) {
+        if (lastThemeGenerationId != themeGenerationId || lastColorGenerationId != colorGenerationId) {
             lastThemeGenerationId = themeGenerationId;
+            lastColorGenerationId = colorGenerationId;
             flags |= FLAG_INVALIDATED_THEMED;
         }
 

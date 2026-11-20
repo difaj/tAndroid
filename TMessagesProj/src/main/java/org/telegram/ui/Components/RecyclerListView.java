@@ -3653,18 +3653,28 @@ public class RecyclerListView extends RecyclerView implements IBlur3Capture {
             bottomMargin = ((JoinToSendSettingsView) to).getBottomInfoMargin();
         }
 
+        final boolean preserveGeometry = preserveSectionGeometryOnClip();
         AndroidUtilities.rectTmp.set(
             from.getLeft(),
-            Math.max(sectionsEdgeTop(), top(from) - (hasAbove ? sectionRadius : 0)),
+            preserveGeometry ? top(from) - (hasAbove ? sectionRadius : 0)
+                    : Math.max(sectionsEdgeTop(), top(from) - (hasAbove ? sectionRadius : 0)),
             from.getRight(),
-            Math.min(sectionsEdgeBottom(), bottom(to) + (hasBelow ? sectionRadius : 0) - bottomMargin)
+            preserveGeometry ? bottom(to) + (hasBelow ? sectionRadius : 0) - bottomMargin
+                    : Math.min(sectionsEdgeBottom(), bottom(to) + (hasBelow ? sectionRadius : 0) - bottomMargin)
         );
         if (AndroidUtilities.rectTmp.bottom < AndroidUtilities.rectTmp.top) return;
         drawSectionBackgroundRect(canvas, AndroidUtilities.rectTmp, sectionRadius, sectionRadius, from.getAlpha());
     }
 
     private void drawSectionBackgroundRect(Canvas canvas, RectF rect, float topRadius, float bottomRadius, float alpha) {
-        drawSectionBackground.run(canvas, rect, topRadius, bottomRadius, alpha);
+        if (preserveSectionGeometryOnClip()) {
+            final int save = canvas.save();
+            canvas.clipRect(0, sectionsEdgeTop(), getWidth(), sectionsEdgeBottom());
+            drawSectionBackground.run(canvas, rect, topRadius, bottomRadius, alpha);
+            canvas.restoreToCount(save);
+        } else {
+            drawSectionBackground.run(canvas, rect, topRadius, bottomRadius, alpha);
+        }
     }
 
     private boolean hasAbove(View view, int index) {
@@ -3839,6 +3849,11 @@ public class RecyclerListView extends RecyclerView implements IBlur3Capture {
         return true;
     }
 
+    /** Keep rounded corners at the actual section edges when content extends under a glass header. */
+    protected boolean preserveSectionGeometryOnClip() {
+        return false;
+    }
+
     private void clipChild(Canvas canvas, View child) {
         if (bitmapSectionsItemDecoration != null || child == null || !shouldClipChildToSection(child) || !sectionsItemDecoration.isSectionItem.run(child) || !isVisualSectionItem(child))
             return;
@@ -3854,12 +3869,16 @@ public class RecyclerListView extends RecyclerView implements IBlur3Capture {
             next = isSectionNeighbour(nextChild, false);
         }
 
+        final boolean preserveGeometry = preserveSectionGeometryOnClip();
         AndroidUtilities.rectTmp.set(
             child.getX(),
-            Math.max(sectionsEdgeTop(), top(child)),
+            preserveGeometry ? top(child) : Math.max(sectionsEdgeTop(), top(child)),
             child.getX() + child.getWidth(),
-            Math.min(sectionsEdgeBottom(), bottom(child))
+            preserveGeometry ? bottom(child) : Math.min(sectionsEdgeBottom(), bottom(child))
         );
+        if (preserveGeometry) {
+            canvas.clipRect(0, sectionsEdgeTop(), getWidth(), sectionsEdgeBottom());
+        }
         if (prev && next) {
             prev = top(child) >= AndroidUtilities.rectTmp.top;
             next = bottom(child) <= AndroidUtilities.rectTmp.bottom;
